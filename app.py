@@ -366,7 +366,7 @@ section_labels = pm.get_setting('section_labels', {
     "asset_growth": "Growth",
     "asset_manifest": "Holdings", 
     "risk_analysis": "Risk Analysis",
-    "global_intel": "Global Intel"
+    "global_intel": "News"
 })
 
 
