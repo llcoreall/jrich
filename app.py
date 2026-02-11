@@ -366,7 +366,7 @@ section_labels = pm.get_setting('section_labels', {
     "asset_growth": "Growth",
     "asset_manifest": "Holdings", 
     "risk_analysis": "Risk Analysis",
-    "global_intel": "News"
+    "global_intel": "Global Intel"
 })
 
 
@@ -1102,7 +1102,7 @@ with r1:
 
 with r2:
     with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader(section_labels.get("global_intel", "Global Intel"))
+        st.subheader(section_labels.get("global_intel", "News"))
         news_items = get_news(raw_assets)
         
         if news_items:
