@@ -411,6 +411,57 @@ with st.sidebar:
         pm.update_cash('KRW', krw_in)
         st.rerun()
         
+    if krw_in != cash_data.get('KRW', 0.0):
+        pm.update_cash('KRW', krw_in)
+        st.rerun()
+        
+    st.markdown("---")
+
+    # V52: Add Asset Moved to Sidebar (Under Cash)
+    with st.expander("➕ Add New Asset", expanded=False):
+        with st.form("add_asset_form_sidebar"):
+            new_ticker = st.text_input("Ticker Symbol").upper()
+            
+            c_qty, c_cost = st.columns(2)
+            with c_qty:
+                new_qty = st.number_input("Qty", min_value=0.0, format="%.4f")
+            with c_cost:
+                new_cost = st.number_input("Avg Cost", min_value=0.0, format="%.2f")
+            
+            new_class = st.selectbox("Class", ["Stock", "Crypto", "ETF", "Bond", "Cash", "Other"])
+            new_sector = st.text_input("Sector", value="Technology")
+            
+            submitted_add = st.form_submit_button("ADD", use_container_width=True)
+            
+            if submitted_add and new_ticker:
+                # Auto-fetch price if 0
+                curr_price = 0.0
+                if new_ticker:
+                    info = md.get_asset_info(new_ticker)
+                    if info:
+                        curr_price = md.get_current_price(new_ticker)
+                        if new_sector == "Technology": # Only override default if meaningful
+                            new_sector = info.get('sector', new_sector)
+                
+                new_asset_entry = {
+                    "ticker": new_ticker,
+                    "quantity": new_qty,
+                    "avg_price": new_cost,
+                    "sector": new_sector,
+                    "asset_class": new_class,
+                    "value_usd": 0.0, 
+                    "current_price": curr_price
+                }
+                
+                # Direct save via PM (bypass buffer for sidebar add, or append to buffer if needed for immediate view)
+                # Ideally, we update PM and rerun, which refreshes everything.
+                pm.add_or_update_asset(new_asset_entry)
+                pm.save_data()
+                
+                st.toast(f"Asset Added: {new_ticker}")
+                time.sleep(0.5)
+                st.rerun()
+
     st.markdown("---")
     with st.expander("Override Protocols"):
         new_labels = section_labels.copy()
@@ -758,17 +809,6 @@ else:
         # Filter CASH from buffer for display (unless we want to edit cash?)
         # Logic: Cash is managed automatically or via specific input. Let's hide CASH row from table editing.
         buffer_assets = st.session_state['asset_buffer']
-        
-        # Map indices: We need to know which buffer index corresponds to which display row.
-        # Since we filter CASH, we need a mapping. 
-        # Actually, simpler: just iterate and keep track of original index if needed?
-        # Or better: Add a hidden ID column? No, index alignment is standard.
-        # We will build display_data from buffer_assets where ticker != 'CASH'.
-        
-        # We also need to sort it to match the view? 
-        # If we sort, the index in editor won't match buffer index.
-        # CRITICAL: If we want to support "Add Row" at bottom, we shouldn't re-sort aggressiveley.
-        # Let's trust the buffer order. Users can drag/drop if we implement it, but for now just append.
         
         display_map = [] # List of buffer indices
         
