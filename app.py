@@ -1102,7 +1102,7 @@ with r1:
 
 with r2:
     with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader(section_labels.get("global_intel", "News"))
+        st.subheader("News")
         news_items = get_news(raw_assets)
         
         if news_items:
