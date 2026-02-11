@@ -1,0 +1,11 @@
+# Streamlit
+.streamlit/secrets.toml
+
+# Data Files (User Isolation)
+data_*.json
+portfolio_data.json
+*.json
+
+# Bytecode
+__pycache__/
+*.pyc
