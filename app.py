@@ -8,7 +8,10 @@ from analytics_engine import AnalyticsEngine
 import time
 import os
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
+import pandas_datareader.data as web
+import yfinance as yf
+import streamlit.components.v1 as components
 
 # --- Setup ---
 st.set_page_config(page_title="Portfolio Manager", layout="wide", page_icon=None, initial_sidebar_state="collapsed")
@@ -108,6 +111,23 @@ def logout():
     st.session_state["logged_in"] = False
     st.session_state["user_id"] = None
     st.rerun()
+
+# --- Robust Initialization (Moved Here V53) ---
+try:
+    current_user = st.session_state.get("user_id", "csj")
+    # Only initialize if logged in (double check, though code flow ensures it)
+    if st.session_state["logged_in"]:
+         # We need to ensure pm is in session state to persist across reruns without re-init?
+         # Actually PM checks GSheets every time or we trust internal state? 
+         # GSheetsConnection handles caching (ttl). 
+         # But PM class instance should probably be cached or just re-inited is fine as it loads from cache.
+         # Let's keep it simple: Init.
+         pm = PortfolioManager(user_id=current_user) 
+    else:
+         st.stop() # Should be caught above
+except Exception as e:
+    st.error(f"CRITICAL ERROR: Failed to load Portfolio Database. {str(e)}")
+    st.stop()
 
 # --- Custom CSS for Dystopian UI & Mobile Optimization (V42) ---
 st.markdown("""
@@ -299,6 +319,51 @@ if 'ae' not in st.session_state:
 md = st.session_state.md
 ae = st.session_state.ae
 
+# --- MACRO INTELLIGENCE CLASS (V54) ---
+class MacroThinking:
+    @staticmethod
+    @st.cache_data(ttl=3600)
+    def get_real_interest_rate_data():
+        try:
+            # 1. 넉넉하게 3년치 데이터 호출
+            start_date = datetime.now() - timedelta(days=1100)
+            end_date = datetime.now()
+            raw_data = web.DataReader(['DGS3MO', 'CPIAUCNS'], 'fred', start_date, end_date)
+            
+            # 2. [무결성 로직] CPI YoY 계산 (월간 데이터만 따로 추출)
+            # CPI 데이터가 존재하는 행만 골라내서 월간 증감률 계산
+            cpi_monthly = raw_data[['CPIAUCNS']].dropna()
+            cpi_yoy = (cpi_monthly / cpi_monthly.shift(12) - 1) * 100
+            cpi_yoy.columns = ['Inflation']
+            
+            # 3. [데이터 통합] 일간 금리 데이터프레임에 월간 Inflation 수치를 병합
+            # 최신 물가 수치를 다음 발표 전까지 매일 동일하게 적용(ffill)
+            df = raw_data[['DGS3MO']].rename(columns={'DGS3MO': 'US3M'})
+            df = df.join(cpi_yoy).ffill()
+            
+            # 4. 실질금리 계산: 3M Yield - Inflation (YoY)
+            df['Real_Rate'] = df['US3M'] - df['Inflation']
+            
+            # 최신 데이터가 누락되지 않도록 결측치 제거 후 반환
+            return df[['US3M', 'Inflation', 'Real_Rate']].dropna()
+            
+        except Exception as e:
+            st.error(f"Macro Data Error: {e}")
+            return pd.DataFrame()
+
+    @staticmethod
+    @st.cache_data(ttl=3600)
+    def get_treasury_yields():
+        try:
+            # DGS3MO, DGS1, DGS2, DGS5, DGS10, DGS30
+            tickers = ['DGS3MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS10', 'DGS20', 'DGS30']
+            start = datetime.now() - timedelta(days=730)
+            df = web.DataReader(tickers, 'fred', start, datetime.now())
+            return df.dropna()
+        except Exception as e:
+            print(f"Treasury Data Error: {e}")
+            return pd.DataFrame()
+
 # Analytics Wrapper
 @st.cache_data(ttl=3600)
 def get_news(assets):
@@ -380,13 +445,19 @@ manual_risk = pm.get_setting('risk_inputs', {
 # --- Sidebar ---
 with st.sidebar:
     st.caption(f"OPERATOR: {st.session_state['user_id'].upper()}")
+    
+    # V54: Menu System
+    menu = st.radio("MODULE", ["📊 Portfolio", "🌎 Macro", "📈 Market", "₿ Crypto", "💱 FX"])
+    
     if st.button("LOGOUT", use_container_width=True):
         logout()
         
-    st.title("SETTINGS")
-    
-    base_currency = st.radio("CURRENCY", ["USD", "CAD", "KRW"], horizontal=True)
-    pm.update_setting("base_currency", base_currency)
+    # --- PORTFOLIO SETTINGS (Only show if Portfolio) ---
+    if menu == "📊 Portfolio":
+        st.title("SETTINGS")
+        
+        base_currency = st.radio("CURRENCY", ["USD", "CAD", "KRW"], horizontal=True)
+        pm.update_setting("base_currency", base_currency)
     
 
 
@@ -470,6 +541,287 @@ with st.sidebar:
         if st.button("UPDATE PROTOCOLS"):
             pm.update_setting('section_labels', new_labels)
             st.rerun()
+
+    # Define base_currency for local scope if not in Portfolio menu (fallback)
+    # But since we only run Portfolio code if menu is Portfolio, it's fine.
+
+# --- MAIN EXECUTION LOGIC ---
+
+if menu == "🌎 Macro":
+    # V54: Global Macro Intelligence
+    st.title("MACRO INTELLIGENCE")
+    
+    # [A] TradingView Widgets (Top)
+    st.markdown("---")
+    st.markdown("### MARKET PULSE")
+    c1, c2 = st.columns(2)
+    sync_start_date = datetime.now() - timedelta(days=365)
+    with c1:
+        try:
+            fed_data = web.DataReader('FEDFUNDS', 'fred', sync_start_date, datetime.now())
+            if not fed_data.empty:
+                latest_fed = fed_data.dropna().iloc[-1][0]
+                prev_fed = fed_data.dropna().iloc[-2][0]
+                
+                # 오르면 초록, 내리면 빨강 (delta_color="normal")
+                st.metric(label="Fed Funds Effective Rate", value=f"{latest_fed:.2f}%", 
+                          delta=f"{latest_fed - prev_fed:.2f}%", delta_color="normal")
+                
+                fig1 = px.area(fed_data.dropna(), y='FEDFUNDS')
+                fig1.update_traces(line_color='#00E676', fillcolor='rgba(0, 230, 118, 0.1)')
+                fig1.update_layout(
+                    height=200, margin=dict(t=10, b=0, l=0, r=0),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    yaxis=dict(showgrid=False, title=None, zeroline=False, 
+                               range=[fed_data['FEDFUNDS'].min() * 0.95, fed_data['FEDFUNDS'].max() * 1.05]),
+                    xaxis=dict(showgrid=False, title=None), showlegend=False)
+                st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
+        except Exception as e:
+            st.error("Fed Data Offline")
+        
+    with c2:
+        try:
+            # 1. FRED 데이터 호출
+            tickers = ['WALCL', 'WTREGEN', 'RRPONTSYD']
+            nl_data = web.DataReader(tickers, 'fred', sync_start_date, datetime.now())
+            
+            # 2. 단위 보정 (Trillions)
+            fed_assets = nl_data['WALCL'] / 1000000
+            tga = nl_data['WTREGEN'] / 1000000
+            rrp = nl_data['RRPONTSYD'] / 1000
+            
+            # 3. 순유동성 계산 및 결측치 제거
+            net_liquidity = (fed_assets - tga - rrp).dropna()
+            
+            if not net_liquidity.empty:
+                latest_nl = net_liquidity.iloc[-1]
+                prev_nl = net_liquidity.iloc[-2] if len(net_liquidity) > 1 else latest_nl
+                diff = latest_nl - prev_nl
+                
+                # 메트릭 출력 (양수 초록, 음수 빨강)
+                st.metric(
+                    label="Net Liquidity", 
+                    value=f"${latest_nl:.2f}T", 
+                    delta=f"{diff:.3f}T (WoW)", 
+                    delta_color="normal"
+                )
+                
+                # 4. Plotly 차트 시각화
+                df_plot = net_liquidity.to_frame(name='liquidity')
+                fig2 = px.area(df_plot, y='liquidity')
+                fig2.update_traces(line_color='#00E676', fillcolor='rgba(0, 230, 118, 0.1)')
+                fig2.update_layout(
+                    height=200, margin=dict(t=10, b=0, l=0, r=0),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    yaxis=dict(
+                        showgrid=False, title=None, zeroline=False, 
+                        range=[net_liquidity.min() * 0.99, net_liquidity.max() * 1.01]
+                    ),
+                    xaxis=dict(showgrid=False, title=None),
+                    showlegend=False
+                )
+                st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
+                #st.caption("Net Liquidity = Assets - TGA - RRP ($T)")
+                
+        except Exception as e:
+            st.error(f"Net Liquidity Stream Offline")
+
+    st.markdown("---")
+
+    # [B] Real Interest Rate Analysis
+    st.subheader("REAL INTEREST RATE")
+    real_rate_df = MacroThinking.get_real_interest_rate_data()
+    
+    if not real_rate_df.empty:
+        latest = real_rate_df.iloc[-1]
+        prev = real_rate_df.iloc[-2] if len(real_rate_df) > 1 else latest
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Real Interest Rate", f"{latest['Real_Rate']:.2f}%", delta=f"{latest['Real_Rate'] - prev['Real_Rate']:.2f}%")
+        m2.metric("Nominal Rate (US3M)", f"{latest['US3M']:.2f}%")
+        m3.metric("Inflation (CPI YoY)", f"{latest['Inflation']:.2f}%")
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=real_rate_df.index, y=real_rate_df['Real_Rate'], fill='tozeroy', mode='lines', name='Real Rate', line=dict(color='#00E676', width=2), fillcolor='rgba(0, 230, 118, 0.1)'))
+        fig.add_trace(go.Scatter(x=real_rate_df.index, y=real_rate_df['Inflation'], mode='lines', name='Inflation', line=dict(color='#FF5252', width=1, dash='dot')))
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(t=10, b=10, l=10, r=10), xaxis=dict(gridcolor='#333'), yaxis=dict(gridcolor='#333'), font=dict(color='#CCC'), legend=dict(orientation="h", y=1.02))
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Data unavailable.")
+
+
+
+    # [C] Treasury Yield Trend (V78: Plotly Property Fix)
+    st.markdown("---")
+    st.subheader("U.S. TREASURY YIELD")
+    
+    yields_df = MacroThinking.get_treasury_yields()
+    
+    if not yields_df.empty:
+        # 1. 상단 메트릭 섹션
+        latest = yields_df.iloc[-1]
+        prev = yields_df.iloc[-2] if len(yields_df) > 1 else latest
+        
+        cols = st.columns(5)
+        
+        # 10Y-2Y Spread
+        if 'DGS10' in latest and 'DGS2' in latest:
+            inv_val = latest['DGS10'] - latest['DGS2']
+            inv_prev = prev['DGS10'] - prev['DGS2']
+            cols[0].metric("10Y-2Y Spread", f"{inv_val:.3f}%", 
+                          delta=f"{inv_val - inv_prev:.3f}%", delta_color="normal")
+        
+        # 주요 만기별 (3M, 2Y, 10Y, 30Y)
+        keys = [('DGS3MO', '3M'), ('DGS2', '2Y'), ('DGS10', '10Y'), ('DGS30', '30Y')]
+        for i, (tic, lab) in enumerate(keys):
+            if tic in latest:
+                cols[i+1].metric(lab, f"{latest[tic]:.2f}%", 
+                                delta=f"{latest[tic]-prev[tic]:.3f}%", delta_color="normal")
+            
+        # 2. Yield Trend 시각화
+        fig_y = go.Figure()
+        
+        # 사령부 네온 컬러 팔레트
+        neon_colors = ['#D500F9', '#7C4DFF', '#00B0FF', '#00E676']
+        plot_ticks = [('DGS3MO', '3M'), ('DGS2', '2Y'), ('DGS10', '10Y'), ('DGS30', '30Y')]
+        
+        # 유효한 컬럼 확인 및 범위 계산
+        active_cols = [t for t, l in plot_ticks if t in yields_df.columns]
+        if active_cols:
+            plot_min = yields_df[active_cols].min().min()
+            plot_max = yields_df[active_cols].max().max()
+        else:
+            plot_min, plot_max = 0, 5
+
+        for i, (tick, label) in enumerate(plot_ticks):
+            if tick in yields_df.columns:
+                 fig_y.add_trace(go.Scatter(
+                     x=yields_df.index, 
+                     y=yields_df[tick], 
+                     mode='lines', 
+                     name=label,
+                     line=dict(width=2.5, color=neon_colors[i])
+                 ))
+            
+        fig_y.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            height=400, 
+            margin=dict(t=10, b=10, l=10, r=10), 
+            # 에러 수정 포인트: 'font'를 'tickfont'로 변경
+            xaxis=dict(showgrid=False, tickfont=dict(color='#888')), 
+            yaxis=dict(
+                gridcolor='rgba(255,255,255,0.05)', 
+                tickfont=dict(color='#888'),
+                zeroline=False,
+                range=[plot_min * 0.98, plot_max * 1.02]
+            ), 
+            legend=dict(
+                orientation="h", 
+                yanchor="bottom", y=1.02, 
+                xanchor="right", x=1,
+                font=dict(color='#CCC') # Legend는 font 속성이 맞습니다.
+            ),
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_y, use_container_width=True, config={'displayModeBar': False})
+    
+
+    # [D] Macro Indicators Radar (V92: PCE % Swap & Final Tuning)
+    st.markdown("---")
+    st.subheader("MACRO INDICATORS RADAR")
+
+    radar_indicators = {
+        "Leading (선행)": {
+            "T10Y2Y": "10Y-2Y Spread",
+            "ICSA": "Initial Claims",
+            "MICH": "Inflation Expectation",
+            "BAMLH0A0HYM2": "High Yield Spread"
+        },
+        "Coincident (동행)": {
+            "PAYEMS": "Nonfarm Payrolls",
+            "INDPRO": "Industrial Production",
+            "DPCCRV1Q225SBEA": "Personal Consumption", # % 변동률 지표로 교체
+            "CMRMTSPL": "Real Manufacturing Sales"
+        },
+        "Lagging (후행)": {
+            "UNRATE": "Unemployment Rate",
+            "BUSLOANS": "Commercial Loans",
+            "CP": "Corporate Profits",
+            "DRCCLACBS": "Credit Card Delinquency Rate"
+        }
+    }
+
+    tabs = st.tabs(list(radar_indicators.keys()))
+    neon_colors = ['#D500F9', '#7C4DFF', '#00B0FF', '#00E676']
+
+    for i, tab in enumerate(tabs):
+        with tab:
+            category = list(radar_indicators.keys())[i]
+            cols = st.columns(4) 
+            for j, (ticker, name) in enumerate(radar_indicators[category].items()):
+                try:
+                    # 데이터 호출 (분기별 지표 대응을 위해 900일 확보)
+                    df_raw = web.get_data_fred(ticker, start=datetime.now() - timedelta(days=900)).ffill()
+                    
+                    if not df_raw.empty:
+                        val_latest = df_raw.iloc[-1, 0]
+                        val_prev = df_raw.iloc[-2, 0]
+                        delta_val = val_latest - val_prev
+                        
+                        # --- 단위 및 출력 포맷 최적화 ---
+                        # 1. 퍼센트 기반 지표 (신규 PCE 포함)
+                        if "%" in name or ticker in ["T10Y2Y", "UNRATE", "MICH", "BAMLH0A0HYM2", "DRCCLACBS", "DPCCRV1Q225SBEA"]:
+                            display_val = f"{val_latest:.2f}%"
+                            delta_str = f"{delta_val:.2f}%"
+                        # 2. 고용 지표 (Millions)
+                        elif ticker == "PAYEMS":
+                            display_val = f"{val_latest/1000:,.1f}M"
+                            delta_str = f"{delta_val/1000:,.2f}M"
+                        # 3. 달러 기반 대형 지표 (Billions)
+                        elif "$B" in name:
+                            div = 1000 if ticker == "CMRMTSPL" else 1
+                            display_val = f"${val_latest/div:,.1f}B"
+                            delta_str = f"${delta_val/div:,.2f}B"
+                        else:
+                            display_val = f"{val_latest:,.1f}"
+                            delta_str = f"{delta_val:,.2f}"
+
+                        with cols[j]:
+                            st.metric(label=name, value=display_val, delta=delta_str, delta_color="normal")
+                            
+                            # 미니 차트 (더 굵고 선명하게)
+                            fig_mini = px.line(df_raw.tail(15), y=df_raw.columns[0])
+                            fig_mini.update_traces(line_color=neon_colors[i], width=3)
+                            fig_mini.update_layout(
+                                height=70, margin=dict(t=5, b=5, l=0, r=0),
+                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                xaxis=dict(visible=False), yaxis=dict(visible=False), showlegend=False
+                            )
+                            st.plotly_chart(fig_mini, use_container_width=True, config={'displayModeBar': False})
+                except:
+                    pass
+
+    # 매크로 섹션의 진짜 마지막 지점에서 딱 한 번 멈춥니다.
+    st.stop()
+
+
+
+
+
+
+
+
+
+elif menu != "📊 Portfolio":
+    st.info(f"MODULE '{menu}' OFFLINE")
+    st.stop()
+    
+# --- PORTFOLIO DASHBOARD (Existing Code) ---
+# Ensure base_currency is available if skipped in sidebar
+if 'base_currency' not in locals():
+    base_currency = pm.get_setting("base_currency", "USD")
 
 # --- Main Dashboard ---
 st.title("PORTFOLIO MANAGER")

@@ -33,12 +33,16 @@ class PortfolioManager:
         # Initialize Connection
         try:
             self.conn = st.connection("gsheets", type=GSheetsConnection)
+            self.data = self._load_data()
         except Exception as e:
-            st.error(f"GSheets Connection Failed: {e}. Check secrets.toml.")
-            self.data = {"assets": [], "cash": {}, "settings": {}}
-            return
-
-        self.data = self._load_data()
+            # Fallback for when secrets are missing or connection fails
+            # We don't want to crash the app, just show empty/local mode warning
+            print(f"GSheets Init Failed: {e}")
+            self.data = {
+                "assets": [],
+                "cash": {"USD": 0.0, "CAD": 0.0, "KRW": 0.0},
+                "settings": {"base_currency": "USD"}
+            }
 
     def _load_data(self) -> Dict[str, Any]:
         """Loads data from GSheets."""
