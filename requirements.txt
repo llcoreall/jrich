@@ -4,3 +4,5 @@ plotly
 yfinance
 numpy
 watchdog
+st-gsheets-connection
+google-auth
