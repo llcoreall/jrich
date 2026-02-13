@@ -439,11 +439,11 @@ def process_assets(assets, rates, base_currency):
 
 # --- Get Settings ---
 section_labels = pm.get_setting('section_labels', {
-    "strategic_allocation": "Allocation",
-    "asset_growth": "Growth",
-    "asset_manifest": "Holdings", 
-    "risk_analysis": "Risk Analysis",
-    "global_intel": "News"
+    "strategic_allocation": "ALLOCATION",
+    "asset_growth": "ASSET GROWTH TREND",
+    "asset_manifest": "HOLDINGS", 
+    "risk_analysis": "RISK ANALYSIS",
+    "global_intel": "NEWS"
 })
 
 
@@ -1452,7 +1452,7 @@ st.markdown(f"""
 st.markdown("---")
 
 # 2. SWAPPED: Growth Chart First
-st.subheader(section_labels.get("asset_growth", "Growth"))
+st.header(section_labels.get("asset_growth", "ASSET GROWTH TREND"))
 with st.container(border=True):
     if not total_history_display.empty:
         PURPLE_LINE = "#D500F9" 
@@ -1488,7 +1488,7 @@ with st.container(border=True):
 st.markdown("---")
 
 # 3. SWAPPED: Allocation (Pie Charts) Second
-st.subheader(section_labels.get("strategic_allocation", "Allocation"))
+st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
 # TEXT COLOR: WHITE (High Luminance)
 PIE_TEXT_COLOR = "#FFFFFF"
@@ -1555,7 +1555,7 @@ else:
     # Pie Chart 2
     with chart_col2:
         with st.container(border=True):
-            st.caption("SECTOR ALLOCATION")
+            st.caption("STOCK SECTOR DISTRIBUTION")
             df_stocks = df_assets[df_assets['asset_class'] == 'Stock']
             if not df_stocks.empty:
                 fig = px.pie(df_stocks, values='value_usd', names='sector', hole=0.5,
@@ -1587,7 +1587,7 @@ else:
     # Pie Chart 3 (Expanded)
     with chart_col3:
         with st.container(border=True):
-            st.caption("HOLDINGS") 
+            st.caption("TOTAL HOLDINGS") 
             
             # Grouping Logic for "Etc" (< 1%)
             total_portfolio_val = df_assets['value_usd'].sum()
@@ -1676,7 +1676,7 @@ else:
     with st.container(border=True):
         col_header, col_delete = st.columns([8, 1])
         with col_header:
-            st.subheader("Holdings")
+            st.subheader("HOLDINGS")
             
         # Initialize Local Asset Buffer if not present
         if 'asset_buffer' not in st.session_state:
@@ -1882,7 +1882,7 @@ with r1:
     # Risk Analysis (Auto-Weighted)
     # --------------------------------------------------------------------------------
     with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader(section_labels.get("risk_analysis", "Risk Analysis"))
+        st.subheader(section_labels.get("risk_analysis", "RISK ANALYSIS"))
         
         # 1. BENCHMARKS
         RISK_BENCHMARKS = {
@@ -1987,7 +1987,7 @@ with r1:
 
 with r2:
     with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader("News")
+        st.subheader("NEWS")
         news_items = get_news(raw_assets)
         
         if news_items:
