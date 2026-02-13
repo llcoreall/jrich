@@ -53,6 +53,7 @@ def login_page():
             max-width: 400px;
             margin: 0 auto;
         }
+        
     </style>
     """, unsafe_allow_html=True)
 
@@ -298,6 +299,7 @@ st.markdown("""
         color: #69f0ae; /* Soft Green Text */
         border: 1px solid #69f0ae;
     }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -368,6 +370,16 @@ class MacroThinking:
 @st.cache_data(ttl=3600)
 def get_news(assets):
     return ae.get_portfolio_news(assets, limit_per_asset=15)
+
+# 야후 파이낸스 캐싱
+@st.cache_data(ttl=3600)  # 1시간 동안 가격 데이터를 메모리에 저장
+def get_cached_historical_data(_ae, assets):
+    """야후 파이낸스 데이터를 1시간 동안 캐싱하여 차트 오프라인 방지"""
+    try:
+        return _ae.fetch_historical_data(assets)
+    except Exception as e:
+        return pd.DataFrame()
+
 
 # Helper: Process Assets
 def process_assets(assets, rates, base_currency):
@@ -444,17 +456,36 @@ manual_risk = pm.get_setting('risk_inputs', {
 
 # --- Sidebar ---
 with st.sidebar:
-    st.caption(f"OPERATOR: {st.session_state['user_id'].upper()}")
-    
-    # V54: Menu System
-    menu = st.radio("MODULE", ["📊 Portfolio", "🌎 Macro", "📈 Market", "₿ Crypto", "💱 FX"])
-    
+    # 기존 st.caption(f"ID: {st.session_state['user_id'].upper()}")
+    st.markdown(
+    f"""
+    <div style="text-align: center; color: #888; font-size: 14px; margin-bottom: 20px;">
+        ID: {st.session_state['user_id'].upper()}
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
     if st.button("LOGOUT", use_container_width=True):
         logout()
-        
+
+    st.markdown("---")
+
+    # 1. Module이라는 글자를 Settings와 같은 레벨의 제목으로 만듭니다.
+    # 만약 Settings가 st.title이면 # 을, st.subheader면 ### 을 사용하세요.
+    st.markdown("### MODULE") # 또는 "### MODULE"
+    
+    # 2. radio 위젯의 첫 번째 인자(label)를 비워둡니다 (label_visibility="collapsed")
+    menu = st.radio(
+        "MODULE_LABEL", # 내부 식별용 이름
+        ["Portfolio", "Macro", "Market", "Crypto", "FX"],
+        label_visibility="collapsed" # 실제 화면에서는 글자를 숨깁니다.
+    )
+
+    st.markdown("---")
+
     # --- PORTFOLIO SETTINGS (Only show if Portfolio) ---
-    if menu == "📊 Portfolio":
-        st.title("SETTINGS")
+    if menu == "Portfolio":
+        st.subheader("SETTINGS")
         
         base_currency = st.radio("CURRENCY", ["USD", "CAD", "KRW"], horizontal=True)
         pm.update_setting("base_currency", base_currency)
@@ -547,7 +578,7 @@ with st.sidebar:
 
 # --- MAIN EXECUTION LOGIC ---
 
-if menu == "🌎 Macro":
+if menu == "Macro":
     # V54: Global Macro Intelligence
     st.title("MACRO INTELLIGENCE")
     
@@ -810,7 +841,7 @@ if menu == "🌎 Macro":
 
 
 # --- MARKET MODULE (V102: Absolute Size Enforcement) ---
-elif menu == "📈 Market":
+elif menu == "Market":
 
     st.title("MARKET INTELLIGENCE")
     
@@ -856,21 +887,36 @@ elif menu == "📈 Market":
             if not data.empty:
                 data = data.ffill().dropna()
                 if not data.empty:
+                    # [V138: 레전드 순서 고정 로직]
+                    # 1. 우선 순위 리스트 정의 (티커 기준)
+                    priority_tickers = [compare_tickers["Bitcoin"], compare_tickers["Total World (VT)"], compare_tickers["S&P 500"]]
+                    
+                    # 2. 현재 데이터프레임 컬럼 중 우선 순위에 없는 나머지 티커들 추출
+                    remaining_tickers = [t for t in data.columns if t not in priority_tickers]
+                    
+                    # 3. 전체 순서 합치기 (우선순위 + 나머지)
+                    # 데이터에 실제로 존재하는 티커만 필터링하여 순서 재배치
+                    final_order = [t for t in priority_tickers if t in data.columns] + remaining_tickers
+                    data = data.reindex(columns=final_order)
+
+                    # 수익률 계산
                     norm_df = (data / data.iloc[0] - 1) * 100
                     
                     fig_perf = go.Figure()
+                    
+                    # 이제 정렬된 데이터프레임 순서대로 루프를 돕니다.
                     for ticker in data.columns:
-                        # yfinance 결과가 단일 종목일 때와 다중 종목일 때를 대비한 라벨 추출
-                        col_name = ticker if isinstance(data.columns, pd.Index) else ticker
-                        label = [k for k, v in compare_tickers.items() if v == col_name][0]
+                        label = [k for k, v in compare_tickers.items() if v == ticker][0]
                         
-                        # [핵심] 비트코인 색상 및 두께 강제 지정
+                        # [핵심] 비트코인 및 주요 지수 스타일 지정
                         if label == "Bitcoin":
-                            line_config = dict(width=3, color="#F7931A") # 오렌지색 + 굵게
+                            line_config = dict(width=3, color="#F7931A") 
                         elif label == "KOSPI":
                             line_config = dict(width=1.5, color="#00B0FF")
+                        elif label == "S&P 500":
+                            line_config = dict(width=2, color="#00E676") # S&P500 강조 (옵션)
                         else:
-                            line_config = dict(width=1.5) # 나머지 지수는 기본 설정
+                            line_config = dict(width=1.5) 
                         
                         fig_perf.add_trace(go.Scatter(
                             x=norm_df.index, 
@@ -889,11 +935,11 @@ elif menu == "📈 Market":
                         margin=dict(t=10, b=10, l=10, r=10),
                         yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
                         xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        # traceorder를 'normal'로 두면 add_trace한 순서대로 레전드가 나옵니다.
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_perf, use_container_width=True)
                     st.caption(f"기준 시점: {data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
-
 
 
 
@@ -934,13 +980,31 @@ elif menu == "📈 Market":
             etf_data = yf.download(target_tickers, start=etf_start_date)['Close']
             
             if not etf_data.empty:
+                # [V140: MultiIndex 대응 및 순서 고정 로직]
                 etf_data = etf_data.ffill().dropna()
+                
                 if not etf_data.empty:
+                    # 1. 성진님이 정의한 etf_config의 티커 순서 추출
+                    priority_tickers = [etf_config[k]["ticker"] for k in etf_config.keys()]
+                    
+                    # 2. 실제 다운로드된 데이터의 컬럼 리스트 확인
+                    # MultiIndex인 경우를 대비해 columns.get_level_values를 고려한 안전한 추출
+                    available_cols = etf_data.columns.tolist()
+                    
+                    # 3. 데이터에 존재하는 티커만 우선순위대로 필터링
+                    final_order = [t for t in priority_tickers if t in available_cols]
+                    
+                    # 4. 순서 재배치 (여기서 오류가 주로 발생하므로 reindex 대신 직접 컬럼 슬라이싱)
+                    etf_data = etf_data[final_order]
+                    
+                    # 수익률 계산
                     etf_norm_df = (etf_data / etf_data.iloc[0] - 1) * 100
                     
                     fig_etf = go.Figure()
+                    
+                    # 5. 정렬된 컬럼 순서대로 루프 실행
                     for ticker in etf_data.columns:
-                        # 티커에 해당하는 라벨과 색상 추출
+                        # 티커에 해당하는 라벨과 색상 매핑
                         label = [k for k, v in etf_config.items() if v["ticker"] == ticker][0]
                         line_color = etf_config[label]["color"]
                         
@@ -949,7 +1013,7 @@ elif menu == "📈 Market":
                             y=etf_norm_df[ticker], 
                             mode='lines', 
                             name=label,
-                            line=dict(width=2.5, color=line_color), # 요청하신 커스텀 색상 적용
+                            line=dict(width=2.5, color=line_color),
                             hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
                         ))
                     
@@ -961,7 +1025,8 @@ elif menu == "📈 Market":
                         margin=dict(t=10, b=10, l=10, r=10),
                         yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
                         xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        # 트레이스 추가 순서대로 레전드 표시
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_etf, use_container_width=True)
                     st.caption(f"기준 시점: {etf_data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
@@ -1281,7 +1346,7 @@ elif menu == "📈 Market":
 
 
 
-elif menu != "📊 Portfolio":
+elif menu != "Portfolio":
     st.info(f"MODULE '{menu}' OFFLINE")
     st.stop()
     
@@ -1303,7 +1368,8 @@ real_assets = [a for a in sorted_assets if a['ticker'] != 'CASH']
 total_history_display = pd.Series()
 
 if real_assets:
-    prices = st.session_state.ae.fetch_historical_data(real_assets)
+    # prices = st.session_state.ae.fetch_historical_data(real_assets)
+    prices = get_cached_historical_data(st.session_state.ae, real_assets)
     if not prices.empty:
         prices = prices.ffill().dropna()
         portfolio_value_series = pd.Series(0.0, index=prices.index)

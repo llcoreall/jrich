@@ -54,7 +54,7 @@ class PortfolioManager:
         
         # 1. LOAD ASSETS
         try:
-            df_assets = self.conn.read(worksheet=self.assets_sheet, ttl=0) # ttl=0 for fresh data
+            df_assets = self.conn.read(worksheet=self.assets_sheet, ttl=60) # ttl=0 for fresh data
             # Clean and Convert to Dict
             if not df_assets.empty:
                 for _, row in df_assets.iterrows():
@@ -71,7 +71,7 @@ class PortfolioManager:
 
         # 2. LOAD CONFIG (Cash & Settings)
         try:
-            df_config = self.conn.read(worksheet=self.config_sheet, ttl=0)
+            df_config = self.conn.read(worksheet=self.config_sheet, ttl=60)
             if not df_config.empty:
                 for _, row in df_config.iterrows():
                     key = str(row.get("Key", ""))
