@@ -764,19 +764,19 @@ if menu == "Macro":
     st.subheader("MACRO INDICATORS RADAR")
 
     radar_indicators = {
-        "Leading (선행)": {
+        "Leading": {
             "T10Y2Y": "10Y-2Y Spread",
             "ICSA": "Initial Claims",
             "MICH": "Inflation Expectation",
             "BAMLH0A0HYM2": "High Yield Spread"
         },
-        "Coincident (동행)": {
+        "Coincident": {
             "PAYEMS": "Nonfarm Payrolls",
             "INDPRO": "Industrial Production",
             "DPCCRV1Q225SBEA": "Personal Consumption", # % 변동률 지표로 교체
             "CMRMTSPL": "Real Manufacturing Sales"
         },
-        "Lagging (후행)": {
+        "Lagging": {
             "UNRATE": "Unemployment Rate",
             "BUSLOANS": "Commercial Loans",
             "CP": "Corporate Profits",
@@ -1432,7 +1432,7 @@ st.markdown(f"""
 <div style="display: flex; gap: 30px; align-items: flex-start;">
     <div>
         <div style="margin-bottom: 2px;">
-            <span style="font-size: 14px; color: #B0B0B0; font-weight: 500;">NET ASSETS ({base_currency})</span>
+            <span style="font-size: 14px; color: #B0B0B0; font-weight: 500;">NET ASSET VALUE ({base_currency})</span>
         </div>
         <span style="font-size: 42px; font-weight: 700; color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4); line-height: 1;">
             {val_html}
