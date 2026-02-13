@@ -1743,7 +1743,7 @@ elif menu == "Crypto":
                     legend=dict(
                         orientation="h", 
                         yanchor="bottom", y=1.02, 
-                        xanchor="right", x=0.75,
+                        xanchor="right", x=0.9,
                         bgcolor='rgba(0,0,0,0)',
                         traceorder="normal" # add_trace 순서대로(BTC -> Corr)
                     ),
