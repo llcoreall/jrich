@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import pandas_datareader.data as web
 import yfinance as yf
 import streamlit.components.v1 as components
+from plotly.subplots import make_subplots # 👈 이 줄이 꼭 있어야 fig_dual이 작동합니다!
 
 # --- Setup ---
 st.set_page_config(page_title="Portfolio Manager", layout="wide", page_icon=None, initial_sidebar_state="collapsed")
@@ -731,7 +732,7 @@ if menu == "Macro":
                      y=yields_df[tick], 
                      mode='lines', 
                      name=label,
-                     line=dict(width=2.5, color=neon_colors[i])
+                     line=dict(width=1.5, color=neon_colors[i])
                  ))
             
         fig_y.update_layout(
@@ -759,7 +760,82 @@ if menu == "Macro":
         st.plotly_chart(fig_y, use_container_width=True, config={'displayModeBar': False})
     
 
-    # [D] Macro Indicators Radar (V92: PCE % Swap & Final Tuning)
+    # [D] CORPORATE BOND YIELD TRACKER (V145: FRED Data)
+    st.markdown("---")
+    st.subheader("U.S. CORPORATE BOND YIELDS")
+    
+    # 1. FRED 티커 및 스타일 설정
+    bond_config = {
+        "AAA Grade": {"ticker": "BAMLC0A1CAAAEY", "color": "#00E676"},   # Green
+        "BBB Grade": {"ticker": "BAMLC0A4CBBBEY", "color": "#FFC107"},   # Orange/Gold
+        "High Yield": {"ticker": "BAMLH0A0HYM2EY", "color": "#FF5252"}   # Red
+    }
+    
+    # 2. 입력 도구
+    bond_col1, bond_col2 = st.columns([1, 2])
+    with bond_col1:
+        bond_start_date = st.date_input("Bond Analysis Start Date", value=datetime(2025, 1, 1), key="bond_start")
+    
+    with bond_col2:
+        selected_bonds = st.multiselect(
+            "Select Bond Grades",
+            options=list(bond_config.keys()),
+            default=list(bond_config.keys()),
+            key="bond_select"
+        )
+    
+    # 3. 데이터 로드 및 시각화
+    if selected_bonds:
+        with st.spinner("Accessing FRED Bond Data..."):
+            bond_tickers = [bond_config[l]["ticker"] for l in selected_bonds]
+            # FRED 데이터는 pandas_datareader(web)를 사용하는 것이 가장 안정적입니다.
+            try:
+                bond_data = web.DataReader(bond_tickers, 'fred', bond_start_date, datetime.now())
+                
+                if not bond_data.empty:
+                    bond_data = bond_data.ffill().dropna()
+                    
+                    # [레전드 순서 강제 고정]
+                    priority_order = [bond_config[k]["ticker"] for k in bond_config.keys()]
+                    final_order = [t for t in priority_order if t in bond_data.columns]
+                    bond_data = bond_data[final_order]
+                    
+                    fig_bond = go.Figure()
+                    
+                    for ticker in bond_data.columns:
+                        label = [k for k, v in bond_config.items() if v["ticker"] == ticker][0]
+                        conf = bond_config[label]
+                        
+                        # High Yield는 더 굵게 표시하여 리스크 강조
+                        line_width = 1.5 if label == "High Yield" else 1.5
+                        
+                        fig_bond.add_trace(go.Scatter(
+                            x=bond_data.index, 
+                            y=bond_data[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=dict(width=line_width, color=conf["color"]),
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_bond.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Yield (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666', ticksuffix="%"),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
+                    )
+                    st.plotly_chart(fig_bond, use_container_width=True)
+                    st.caption("Source: Federal Reserve Bank of St. Louis (FRED)")
+            except Exception as e:
+                st.error(f"FRED Data Stream Offline: {e}")
+
+
+
+    # [E] Macro Indicators Radar (V92: PCE % Swap & Final Tuning)
     st.markdown("---")
     st.subheader("MACRO INDICATORS RADAR")
 
@@ -914,7 +990,7 @@ elif menu == "Market":
                         elif label == "KOSPI":
                             line_config = dict(width=1.5, color="#00B0FF")
                         elif label == "S&P 500":
-                            line_config = dict(width=2, color="#00E676") # S&P500 강조 (옵션)
+                            line_config = dict(width=1.5, color="#00E676") # S&P500 강조 (옵션)
                         else:
                             line_config = dict(width=1.5) 
                         
@@ -939,7 +1015,7 @@ elif menu == "Market":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_perf, use_container_width=True)
-                    st.caption(f"기준 시점: {data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
+                    st.caption(f"Base Date: {data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
 
 
 
@@ -1013,7 +1089,7 @@ elif menu == "Market":
                             y=etf_norm_df[ticker], 
                             mode='lines', 
                             name=label,
-                            line=dict(width=2.5, color=line_color),
+                            line=dict(width=1.5, color=line_color),
                             hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
                         ))
                     
@@ -1029,7 +1105,7 @@ elif menu == "Market":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_etf, use_container_width=True)
-                    st.caption(f"기준 시점: {etf_data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
+                    st.caption(f"Base Date: {etf_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
 
 
 
@@ -1106,12 +1182,12 @@ elif menu == "Market":
                         plot_bgcolor='rgba(0,0,0,0)',
                         height=600, # 섹터가 많으므로 높이를 조금 더 확보
                         margin=dict(t=10, b=10, l=10, r=10),
-                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
                         xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     st.plotly_chart(fig_sec, use_container_width=True)
-                    st.caption(f"기준 시점: {sec_raw_data.index[0].strftime('%Y-%m-%d')} 대비 수익률")
+                    st.caption(f"Base Date: {sec_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
 
 
 
@@ -1149,7 +1225,7 @@ elif menu == "Market":
             fig_rot.add_trace(go.Scatter(
                 x=rot_norm.index, y=rot_norm["VUG"],
                 mode='lines', name="Growth (VUG)",
-                line=dict(width=2.5, color="#00E5FF"),
+                line=dict(width=1.5, color="#00E5FF"),
                 hovertemplate="Growth: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1157,7 +1233,7 @@ elif menu == "Market":
             fig_rot.add_trace(go.Scatter(
                 x=rot_norm.index, y=rot_norm["VTV"],
                 mode='lines', name="Value (VTV)",
-                line=dict(width=2.5, color="#FFC107"),
+                line=dict(width=1.5, color="#FFC107"),
                 hovertemplate="Value: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1165,7 +1241,7 @@ elif menu == "Market":
             fig_rot.add_trace(go.Scatter(
                 x=ratio_norm.index, y=ratio_norm,
                 mode='lines', name="Growth/Value Ratio",
-                line=dict(width=4, color="#FFFFFF", dash='dot'), # 점선으로 구분
+                line=dict(width=3, color="#FFFFFF", dash='dot'), # 점선으로 구분
                 hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1181,7 +1257,8 @@ elif menu == "Market":
             )
             
             st.plotly_chart(fig_rot, use_container_width=True)
-            
+            st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+
             # 3. 전략적 코멘트
             current_ratio = ratio_norm.iloc[-1]
             status = "성장주 우위" if current_ratio > 0 else "가치주 우위"
@@ -1194,18 +1271,28 @@ elif menu == "Market":
     st.markdown("---")
     st.subheader("COMMODITIES PERFORMANCE") 
 
-    # 1. 딕셔너리 순서 (정의된 순서가 레전드 순서가 됨)
+    # 1. 딕셔너리 순서 및 스타일 업데이트
     com_config = {
-        "Dollar Index (DXY)": {"ticker": "DX-Y.NYB", "color": "#FFFFFF", "width": 3},
+        "Dollar Index (DXY)": {
+            "ticker": "DX-Y.NYB", 
+            "color": "#FFFFFF", 
+            "width": 3, 
+            "dash": "dot"  # [업데이트] 점선 스타일 추가
+        },
         
-        "Gold": {"ticker": "GC=F", "color": "#FFD700", "width": 2},
-        "Copper": {"ticker": "HG=F", "color": "#B87333", "width": 2},        
-        "Silver": {"ticker": "SI=F", "color": "#C0C0C0", "width": 2},
-        "Palladium": {"ticker": "PA=F", "color": "#CED4DA", "width": 1.5},
-        "Platinum": {"ticker": "PL=F", "color": "#E5E4E2", "width": 1.5},
-        "WTI Crude": {"ticker": "CL=F", "color": "#FF4500", "width": 2},
-        "Brent Oil": {"ticker": "BZ=F", "color": "#8B0000", "width": 1.5},
-        "Natural Gas": {"ticker": "NG=F", "color": "#00CED1", "width": 1.5},
+        "Gold": {"ticker": "GC=F", "color": "#FFD700", "width": 1.5, "dash": "solid"},
+        "Copper": {"ticker": "HG=F", "color": "#B87333", "width": 1.5, "dash": "solid"},        
+        "Silver": {
+            "ticker": "SI=F", 
+            "color": "#1E90FF", # [업데이트] DodgerBlue (달러와 확실히 구분됨)
+            "width": 1.5, 
+            "dash": "solid"
+        },
+        "Palladium": {"ticker": "PA=F", "color": "#CED4DA", "width": 1.5, "dash": "solid"},
+        "Platinum": {"ticker": "PL=F", "color": "#E5E4E2", "width": 1.5, "dash": "solid"},
+        "WTI Crude": {"ticker": "CL=F", "color": "#FF4500", "width": 1.5, "dash": "solid"},
+        "Brent Oil": {"ticker": "BZ=F", "color": "#8B0000", "width": 1.5, "dash": "solid"},
+        "Natural Gas": {"ticker": "NG=F", "color": "#00CED1", "width": 1.5, "dash": "solid"},
     }
     
     # 2. 입력 도구 (기존과 동일)
@@ -1246,7 +1333,8 @@ elif menu == "Market":
                             y=com_norm_df[ticker], 
                             mode='lines', 
                             name=label,
-                            line=dict(width=conf["width"], color=conf["color"]),
+                            line=dict(width=conf["width"], color=conf["color"], 
+                            dash=conf.get("dash", "solid")),
                             hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
                         ))
                     
@@ -1256,11 +1344,12 @@ elif menu == "Market":
                         plot_bgcolor='rgba(0,0,0,0)',
                         height=550,
                         margin=dict(t=10, b=10, l=10, r=10),
-                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
                         xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     st.plotly_chart(fig_com, use_container_width=True)
+                    st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
 
 
 
@@ -1295,7 +1384,7 @@ elif menu == "Market":
             fig_cgr.add_trace(go.Scatter(
                 x=cgr_norm.index, y=cgr_norm["HG=F"],
                 mode='lines', name="Copper (HG=F)",
-                line=dict(width=2, color="#B87333"),
+                line=dict(width=1.5, color="#B87333"),
                 hovertemplate="Copper: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1303,7 +1392,7 @@ elif menu == "Market":
             fig_cgr.add_trace(go.Scatter(
                 x=cgr_norm.index, y=cgr_norm["GC=F"],
                 mode='lines', name="Gold (GC=F)",
-                line=dict(width=2, color="#FFD700"),
+                line=dict(width=1.5, color="#FFD700"),
                 hovertemplate="Gold: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1311,7 +1400,7 @@ elif menu == "Market":
             fig_cgr.add_trace(go.Scatter(
                 x=cg_ratio_norm.index, y=cg_ratio_norm,
                 mode='lines', name="Copper/Gold Ratio",
-                line=dict(width=4, color="#FFFFFF", dash='dot'),
+                line=dict(width=3, color="#FFFFFF", dash='dot'),
                 hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
             ))
             
@@ -1321,23 +1410,465 @@ elif menu == "Market":
                 plot_bgcolor='rgba(0,0,0,0)',
                 height=550,
                 margin=dict(t=10, b=10, l=10, r=10),
-                yaxis=dict(title="Performance / Ratio Change (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                yaxis=dict(title="Performance / Ratio Change (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
                 xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             
             st.plotly_chart(fig_perf_cgr if 'fig_perf_cgr' in locals() else fig_cgr, use_container_width=True)
+            st.caption(f"Base Date: {cgr_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
             
             # 3. 전략적 진단
             current_cgr = cg_ratio_norm.iloc[-1]
             cgr_status = "경기 확장/인플레이션 압력" if current_cgr > 0 else "경기 둔화/디플레이션 우려"
             st.info(f"**실물 경기 진단:** 기준일 대비 Copper/Gold 비율이 **{current_cgr:.2f}% { '상승' if current_cgr > 0 else '하락' }**하여, **{cgr_status}** 시그널을 보이고 있습니다.")
 
+    st.stop()
+
+
+
+
+
+# --- MARKET MODULE (V102: Absolute Size Enforcement) ---
+elif menu == "Crypto":
+
+    st.title("CRYPTO INTELLIGENCE")
+    
+    # [A] TOP 10 CRYPTO PERFORMANCE (Excl. Stablecoins)
+    st.markdown("---")
+    st.subheader("TOP 10 CRYPTO PERFORMANCE")
+    
+    # 1. 시총 상위 10개 코인 티커 매핑 (스테이블코인 제외)
+    crypto_config = {
+        "Bitcoin": {"ticker": "BTC-USD", "color": "#F7931A", "width": 3},   # BTC 오렌지색
+        "Ethereum": {"ticker": "ETH-USD", "color": "#627EEA", "width": 1.5},  # ETH 블루
+        "Solana": {"ticker": "SOL-USD", "color": "#AF52DE", "width": 1.5},
+        "BNB": {"ticker": "BNB-USD", "color": "#F3BA2F", "width": 1.5},
+        "XRP": {"ticker": "XRP-USD", "color": "#14F195", "width": 1.5},
+        "Cardano": {"ticker": "ADA-USD", "color": "#0033AD", "width": 1.5},
+        "Avalanche": {"ticker": "AVAX-USD", "color": "#E84142", "width": 1.5},
+        "Dogecoin": {"ticker": "DOGE-USD", "color": "#C2A633", "width": 1.5},
+        "Tron": {"ticker": "TRX-USD", "color": "#FF0013", "width": 1.5},
+        "Chainlink": {"ticker": "LINK-USD", "color": "#2A5ADA", "width": 1.5}
+    }
+    
+    # 2. 입력 도구
+    c_col1, c_col2 = st.columns([1, 2])
+    with c_col1:
+        # 비트코인 표준에 맞춰 올해 초부터를 기본값으로 설정
+        crypto_default_start = datetime(datetime.now().year, 1, 1)
+        crypto_start_date = st.date_input("Crypto Comparison Start", value=crypto_default_start, key="crypto_perf_date")
+        
+    with c_col2:
+        selected_cryptos = st.multiselect(
+            "Select Assets to Compare", 
+            options=list(crypto_config.keys()),
+            default=["Bitcoin", "Ethereum", "Solana", "BNB", "XRP", "Cardano", "Avalanche", "Dogecoin", "Tron", "Chainlink"], # 주요 코인 기본 선택
+            key="crypto_perf_select"
+        )
+    
+    # 3. 데이터 로드 및 시각화
+    if selected_cryptos:
+        with st.spinner("Syncing with Blockchain Data (via yfinance)..."):
+            c_target_tickers = [crypto_config[l]["ticker"] for l in selected_cryptos]
+            c_data = yf.download(c_target_tickers, start=crypto_start_date)['Close']
+            
+            if not c_data.empty:
+                c_data = c_data.ffill().dropna()
+                
+                if not c_data.empty:
+                    # [레전드 순서 고정] 정의한 crypto_config 순서대로
+                    c_priority = [crypto_config[k]["ticker"] for k in crypto_config.keys()]
+                    c_final_order = [t for t in c_priority if t in c_data.columns]
+                    c_data = c_data[c_final_order]
+                    
+                    # 수익률 계산
+                    c_norm_df = (c_data / c_data.iloc[0] - 1) * 100
+                    
+                    fig_crypto = go.Figure()
+                    
+                    for ticker in c_data.columns:
+                        label = [k for k, v in crypto_config.items() if v["ticker"] == ticker][0]
+                        conf = crypto_config[label]
+                        
+                        fig_crypto.add_trace(go.Scatter(
+                            x=c_norm_df.index, 
+                            y=c_norm_df[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=dict(width=conf["width"], color=conf["color"]),
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_crypto.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
+                    )
+                    st.plotly_chart(fig_crypto, use_container_width=True)
+                    st.caption(f"Base Date: {c_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+
+
+
+    # [B] BITCOIN 217-WEEK CYCLE RADAR (V202: Clean RSI)
+    st.markdown("---")
+    st.subheader("BTC TECHNICAL RADAR")
+
+    tech_col1, tech_col2 = st.columns([1, 2])
+    with tech_col1:
+        tech_start_date = st.date_input("Technical Analysis Start", value=datetime.now() - timedelta(days=365*2), key="btc_tech_v202")
+
+    with st.spinner("Calculating Strategic Indicators..."):
+        fetch_start_long = tech_start_date - timedelta(days=365*6)
+        btc_raw = yf.download("BTC-USD", start=fetch_start_long, interval='1d', progress=False)
+        
+        if not btc_raw.empty:
+            if isinstance(btc_raw.columns, pd.MultiIndex):
+                d_prices = btc_raw['Close']['BTC-USD']
+            else:
+                d_prices = btc_raw['Close']
+                
+            d_prices = d_prices.ffill().dropna()
+            w_prices = d_prices.resample('W').last()
+
+            if len(w_prices) >= 217:
+                sma217w = w_prices.rolling(window=217).mean()
+                ema217w = w_prices.ewm(span=217, adjust=False).mean()
+                median217w = (sma217w + ema217w) / 2
+                median_daily = median217w.reindex(d_prices.index).ffill()
+                
+                # RSI 계산 (일봉 14일)
+                delta = d_prices.diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss.replace(0, np.nan) 
+                rsi = 100 - (100 / (1 + rs))
+                
+                mask = d_prices.index.date >= tech_start_date
+                p_disp = d_prices[mask]
+                m_disp = median_daily[mask]
+                rsi_disp = rsi[mask].fillna(50)
+                
+                fig_tech = make_subplots(
+                    rows=2, cols=1, shared_xaxes=True, 
+                    vertical_spacing=0.08, row_heights=[0.7, 0.3],
+                    subplot_titles=("BTC", "RSI")
+                )
+                
+                # Trace 1: BTC Price
+                fig_tech.add_trace(go.Scatter(
+                    x=p_disp.index, y=p_disp, name="BTC", 
+                    line=dict(color="#F7931A", width=1.5)
+                ), row=1, col=1)
+                
+                # Trace 2: 217W Median
+                fig_tech.add_trace(go.Scatter(
+                    x=m_disp.index, y=m_disp, name="217W Median", 
+                    line=dict(color="#00E676", width=2, dash='dashdot') 
+                ), row=1, col=1)
+                
+                # Trace 3: RSI (선만 깔끔하게 표시)
+                fig_tech.add_trace(go.Scatter(
+                    x=rsi_disp.index, y=rsi_disp, name="RSI", 
+                    line=dict(color="#AF52DE", width=1.5)
+                ), row=2, col=1)
+                
+                # [수정] 30, 70 기준선만 명확하게 표시
+                fig_tech.add_hline(y=70, line_dash="dash", line_color="#FF5252", line_width=1, opacity=0.8, row=2, col=1)
+                fig_tech.add_hline(y=30, line_dash="dash", line_color="#00E676", line_width=1, opacity=0.8, row=2, col=1)
+                
+                fig_tech.update_layout(
+                    hovermode="x unified", height=650,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(t=30, b=10, l=10, r=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
+                )
+                
+                fig_tech.update_yaxes(gridcolor='rgba(255,255,255,0.05)', row=1, col=1)
+                fig_tech.update_yaxes(range=[0, 100], gridcolor='rgba(255,255,255,0.05)', row=2, col=1)
+                
+                st.plotly_chart(fig_tech, use_container_width=True)
+                
+                # 전략적 진단
+                curr_p = float(p_disp.iloc[-1])
+                curr_m = float(m_disp.iloc[-1])
+                curr_rsi = float(rsi_disp.iloc[-1])
+                dist = ((curr_p / curr_m) - 1) * 100
+                st.info(f"**Insight:** BTC vs 217W Median: **{dist:.2f}%** | RSI: **{curr_rsi:.2f}**")
+            else:
+                st.warning("데이터가 부족합니다.")
+
+
+
+
+
+    # [C] CRYPTO VOLATILITY & PRICE OVERLAY (V185: Final Robust Version)
+    st.markdown("---")
+    st.subheader("BTC VOLATILITY vs PRICE")
+
+    vol_col1, vol_col2 = st.columns([1, 2])
+    with vol_col1:
+        vol_start_date = st.date_input("Analysis Start Date", value=datetime.now() - timedelta(days=365), key="vol_price_final")
+
+    with st.spinner("Analyzing BTC Pulse..."):
+        fetch_start = vol_start_date - timedelta(days=60)
+        btc_data = yf.download("BTC-USD", start=fetch_start, progress=False)
+        
+        if not btc_data.empty:
+            # MultiIndex 구조 완벽 방어
+            if isinstance(btc_data.columns, pd.MultiIndex):
+                price_series = btc_data['Close']['BTC-USD']
+            else:
+                price_series = btc_data['Close']
+                
+            price_series = price_series.ffill().dropna()
+            
+            if len(price_series) > 30:
+                daily_returns = price_series.pct_change().dropna()
+                rolling_std = daily_returns.rolling(window=30, min_periods=20).std()
+                vol_30d = rolling_std * np.sqrt(365) * 100
+                
+                vol_display = vol_30d[vol_30d.index.date >= vol_start_date].dropna()
+                price_display = price_series[price_series.index.date >= vol_start_date].dropna()
+                
+                if not vol_display.empty:
+                    # [교정 1] make_subplots 호출
+                    fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
+                    
+                    # 변동성 레이어
+                    fig_dual.add_trace(go.Scatter(
+                        x=vol_display.index, y=vol_display,
+                        mode='lines', name="30D Volatility",
+                        line=dict(width=1.5, color="#00E5FF"),
+                        fill='tozeroy', fillcolor='rgba(0, 229, 255, 0.1)'
+                    ), secondary_y=False)
+                    
+                    # 가격 레이어
+                    fig_dual.add_trace(go.Scatter(
+                        x=price_display.index, y=price_display,
+                        mode='lines', name="BTC",
+                        line=dict(width=1.5, color="#F7931A")
+                    ), secondary_y=True)
+                    
+                    # [교정 2] avg_vol을 확실하게 스칼라 숫자로 변환 (TypeError 방지)
+                    raw_avg = vol_display.mean()
+                    avg_vol = float(raw_avg.iloc[0]) if isinstance(raw_avg, pd.Series) else float(raw_avg)
+                    
+                    fig_dual.add_hline(
+                        y=avg_vol, line_dash="dot", line_color="#FF5252", 
+                        annotation_text=f"AVG: {avg_vol:.1f}%", # 이제 여기서 에러 안 납니다! ㅋ
+                        secondary_y=False
+                    )
+                    
+                    fig_dual.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=30, b=10, l=10, r=10),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=0.9), # 원래 1
+                        yaxis=dict(title="Vol (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"),
+                        yaxis2=dict(title="Price (USD)", showgrid=False)
+                    )
+                    
+                    st.plotly_chart(fig_dual, use_container_width=True)
+                    
+                    # 인포 박스 출력
+                    curr_vol = float(vol_display.iloc[-1])
+                    curr_price = float(price_display.iloc[-1])
+                    st.info(f"**Market Status:** BTC ${curr_price:,.0f} | Volatility {curr_vol:.2f}%")
+
+
+
+    # [D] CRYPTO vs STOCK CORRELATION & PRICE (V228: Legend Sorted & White Dot)
+    st.markdown("---")
+    st.subheader("BTC vs U.S. STOCK CORRELATION")
+
+    c_col1, c_col2 = st.columns([1, 2])
+    with c_col1:
+        corr_start_date = st.date_input("Corr Analysis Start", value=datetime.now() - timedelta(days=365), key="c_date_v228")
+    with c_col2:
+        s_bench = st.selectbox("Benchmark", ["Nasdaq 100 (^NDX)", "S&P 500 (^GSPC)"], key="s_bench_v228")
+        s_ticker = "^NDX" if "Nasdaq" in s_bench else "^GSPC"
+
+    with st.spinner("Analyzing Correlation Dynamics..."):
+        c_fetch_start = corr_start_date - timedelta(days=120)
+        c_raw = yf.download(["BTC-USD", s_ticker], start=c_fetch_start, progress=False)['Close']
+        
+        if not c_raw.empty:
+            c_raw = c_raw.ffill().dropna()
+            c_rets = c_raw.pct_change().dropna()
+            c_series = c_rets["BTC-USD"].rolling(window=60).corr(c_rets[s_ticker]).dropna()
+            
+            c_common = c_series.index.intersection(c_raw.index)
+            c_final = c_series.loc[c_common]
+            cp_final = c_raw.loc[c_common, "BTC-USD"]
+            
+            c_mask = c_final.index.date >= corr_start_date
+            c_disp = c_final[c_mask]
+            cp_disp = cp_final[c_mask]
+            
+            if not c_disp.empty:
+                from plotly.subplots import make_subplots
+                fig_c = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                # [레전드 순서 1] BTC Price (오렌지 실선)
+                fig_c.add_trace(go.Scatter(
+                    x=cp_disp.index, y=cp_disp, 
+                    name="BTC", 
+                    line=dict(width=1.5, color="#F7931A")
+                ), secondary_y=True)
+
+                # [레전드 순서 2] Correlation (하얀색 점선)
+                fig_c.add_trace(go.Scatter(
+                    x=c_disp.index, y=c_disp, 
+                    name="Correlation",
+                    line=dict(width=3, color="#FFFFFF", dash="dot"), # 하얀색 점선으로 변경
+                    fill='tozeroy', fillcolor='rgba(255, 255, 255, 0.03)'
+                ), secondary_y=False)
+                
+                # 기준선 (0.0)
+                fig_c.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)", secondary_y=False)
+                
+                # UI 레이아웃 및 우측 상단 레전드 정렬
+                fig_c.update_layout(
+                    hovermode="x unified", height=500,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(t=50, b=10, l=10, r=10),
+                    legend=dict(
+                        orientation="h", 
+                        yanchor="bottom", y=1.02, 
+                        xanchor="right", x=0.75,
+                        bgcolor='rgba(0,0,0,0)',
+                        traceorder="normal" # add_trace 순서대로(BTC -> Corr)
+                    ),
+                    yaxis=dict(title="Correlation", range=[-1.1, 1.1], gridcolor='rgba(255,255,255,0.05)'),
+                    yaxis2=dict(title="BTC Price (USD)", showgrid=False)
+                )
+                
+                st.plotly_chart(fig_c, use_container_width=True)
+                
+                # 전략적 해석 로직
+                curr_c = float(c_disp.iloc[-1])
+                curr_p = float(cp_disp.iloc[-1])
+                
+                if curr_c > 0.6:
+                    c_status = "⚠️ 고동조화 (High Coupling): 자산 배분 효과 일시 감소"
+                elif curr_c < 0.1:
+                    c_status = "✅ 탈동조화 (Decoupling): 비트코인 표준 헤지 기능 강화"
+                else:
+                    c_status = "중립적 상관관계 (Neutral)"
+                
+                st.caption(f"Status: {c_status} | Base Date: {c_disp.index[0].strftime('%Y-%m-%d')}")
+                st.info(f"**Correlation Insight:** BTC ${curr_p:,.0f} | 현재 상관계수: **{curr_c:.2f}**")
+
+
+
+
+
+
+
+    # [E] BTC vs GOLD vs DXY RELATIVE STRENGTH (V160)
+    st.markdown("---")
+    st.subheader("DXY vs BTC vs GOLD")
+    
+    # 1. 입력 도구 (기본 날짜는 연초로 설정)
+    bgd_col1, bgd_col2 = st.columns([1, 2])
+    with bgd_col1:
+        bgd_default_start = datetime(datetime.now().year, 1, 1)
+        bgd_start_date = st.date_input("Analysis Start Date", value=bgd_default_start, key="bgd_ratio_date")
+    
+    # 2. 데이터 로드 (DX-Y.NYB, BTC-USD, GC=F)
+    with st.spinner("Analyzing Global Monetary Assets..."):
+        # DX-Y.NYB: Dollar Index, BTC-USD: Bitcoin, GC=F: Gold
+        bgd_tickers = ["DX-Y.NYB", "BTC-USD", "GC=F"]
+        bgd_raw_data = yf.download(bgd_tickers, start=bgd_start_date)['Close']
+        
+        if not bgd_raw_data.empty:
+            bgd_raw_data = bgd_raw_data.ffill().dropna()
+            
+            if not bgd_raw_data.empty:
+                # 수익률 표준화 (0% 기준)
+                bgd_norm = (bgd_raw_data / bgd_raw_data.iloc[0] - 1) * 100
+                
+                # 티커 변수 할당
+                dxy_col = "DX-Y.NYB"
+                btc_col = "BTC-USD"
+                gold_col = "GC=F"
+                
+                # Bitcoin / Gold Ratio 계산
+                bg_ratio = bgd_raw_data[btc_col] / bgd_raw_data[gold_col]
+                bg_ratio_norm = (bg_ratio / bg_ratio.iloc[0] - 1) * 100
+                
+                # 3. 차트 생성
+                fig_bgd = go.Figure()
+                
+                # [레전드 순서 1] Dollar Index - 초록색
+                fig_bgd.add_trace(go.Scatter(
+                    x=bgd_norm.index, y=bgd_norm[dxy_col],
+                    mode='lines', name="US Dollar Index",
+                    line=dict(width=2, color="#00FF41"), # 사령부 시그니처 그린
+                    hovertemplate="DXY: %{y:.2f}%<extra></extra>"
+                ))
+                
+                # [레전드 순서 2] Bitcoin - 오렌지색 굵은 선
+                fig_bgd.add_trace(go.Scatter(
+                    x=bgd_norm.index, y=bgd_norm[btc_col],
+                    mode='lines', name="Bitcoin",
+                    line=dict(width=1.5, color="#F7931A"),
+                    hovertemplate="Bitcoin: %{y:.2f}%<extra></extra>"
+                ))
+                
+                # [레전드 순서 3] Gold - 금색 실선
+                fig_bgd.add_trace(go.Scatter(
+                    x=bgd_norm.index, y=bgd_norm[gold_col],
+                    mode='lines', name="Gold",
+                    line=dict(width=1.5, color="#FFD700"),
+                    hovertemplate="Gold: %{y:.2f}%<extra></extra>"
+                ))
+                
+                # [레전드 순서 4] Ratio - 화이트 굵은 도트선
+                fig_bgd.add_trace(go.Scatter(
+                    x=bg_ratio_norm.index, y=bg_ratio_norm,
+                    mode='lines', name="BTC/Gold Ratio",
+                    line=dict(width=3, color="#FFFFFF", dash='dot'),
+                    hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
+                ))
+                
+                fig_bgd.update_layout(
+                    hovermode="x unified",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    height=550,
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    yaxis=dict(title="Performance / Ratio Change (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
+                    xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                    legend=dict(
+                        orientation="h", 
+                        yanchor="bottom", y=1.02, 
+                        xanchor="right", x=1,
+                        traceorder="normal" # 코딩한 순서 유지
+                    )
+                )
+                
+                st.plotly_chart(fig_bgd, use_container_width=True)
+                
+                # 하단 캡션 추가
+                st.caption(f"Base Date: {bgd_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+                
+                # 4. 전략적 코멘트
+                current_dxy = bgd_norm[dxy_col].iloc[-1]
+                current_ratio_gain = bg_ratio_norm.iloc[-1]
+                st.info(f"**Market Dynamics:** 달러 인덱스는 기준일 대비 **{current_dxy:.2f}% {'강세' if current_dxy > 0 else '약세'}**이며, 금 대비 비트코인 구매력은 **{current_ratio_gain:.2f}% {'확장' if current_ratio_gain > 0 else '축소'}** 중입니다.")
 
 
 
     st.stop()
-
 
 
 
