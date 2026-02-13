@@ -1607,13 +1607,13 @@ elif menu == "Crypto":
 
 
 
-    # [C] CRYPTO VOLATILITY & PRICE OVERLAY (V185: Final Robust Version)
+    # [C] CRYPTO VOLATILITY & PRICE OVERLAY (V230: Legend Sorted)
     st.markdown("---")
     st.subheader("BTC VOLATILITY vs PRICE")
 
     vol_col1, vol_col2 = st.columns([1, 2])
     with vol_col1:
-        vol_start_date = st.date_input("Analysis Start Date", value=datetime.now() - timedelta(days=365), key="vol_price_final")
+        vol_start_date = st.date_input("Analysis Start Date", value=datetime.now() - timedelta(days=365), key="vol_price_final_v230")
 
     with st.spinner("Analyzing BTC Pulse..."):
         fetch_start = vol_start_date - timedelta(days=60)
@@ -1637,31 +1637,30 @@ elif menu == "Crypto":
                 price_display = price_series[price_series.index.date >= vol_start_date].dropna()
                 
                 if not vol_display.empty:
-                    # [교정 1] make_subplots 호출
                     fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
                     
-                    # 변동성 레이어
-                    fig_dual.add_trace(go.Scatter(
-                        x=vol_display.index, y=vol_display,
-                        mode='lines', name="30D Volatility",
-                        line=dict(width=1.5, color="#00E5FF"),
-                        fill='tozeroy', fillcolor='rgba(0, 229, 255, 0.1)'
-                    ), secondary_y=False)
-                    
-                    # 가격 레이어
+                    # [레전드 순서 1] BTC Price (Secondary Y: True)
                     fig_dual.add_trace(go.Scatter(
                         x=price_display.index, y=price_display,
                         mode='lines', name="BTC",
                         line=dict(width=1.5, color="#F7931A")
                     ), secondary_y=True)
+
+                    # [레전드 순서 2] 30D Volatility (Secondary Y: False)
+                    fig_dual.add_trace(go.Scatter(
+                        x=vol_display.index, y=vol_display,
+                        mode='lines', name="Volatility(30D)",
+                        line=dict(width=1.5, color="#00E5FF"),
+                        fill='tozeroy', fillcolor='rgba(0, 229, 255, 0.1)'
+                    ), secondary_y=False)
                     
-                    # [교정 2] avg_vol을 확실하게 스칼라 숫자로 변환 (TypeError 방지)
+                    # avg_vol 스칼라 변환
                     raw_avg = vol_display.mean()
                     avg_vol = float(raw_avg.iloc[0]) if isinstance(raw_avg, pd.Series) else float(raw_avg)
                     
                     fig_dual.add_hline(
                         y=avg_vol, line_dash="dot", line_color="#FF5252", 
-                        annotation_text=f"AVG: {avg_vol:.1f}%", # 이제 여기서 에러 안 납니다! ㅋ
+                        annotation_text=f"AVG: {avg_vol:.1f}%",
                         secondary_y=False
                     )
                     
@@ -1671,7 +1670,12 @@ elif menu == "Crypto":
                         plot_bgcolor='rgba(0,0,0,0)',
                         height=550,
                         margin=dict(t=30, b=10, l=10, r=10),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=0.9), # 원래 1
+                        legend=dict(
+                            orientation="h", 
+                            yanchor="bottom", y=1.02, 
+                            xanchor="right", x=0.95, # 통일성을 위해 1로 고정
+                            traceorder="normal"
+                        ),
                         yaxis=dict(title="Vol (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"),
                         yaxis2=dict(title="Price (USD)", showgrid=False)
                     )
@@ -1743,7 +1747,7 @@ elif menu == "Crypto":
                     legend=dict(
                         orientation="h", 
                         yanchor="bottom", y=1.02, 
-                        xanchor="right", x=0.9,
+                        xanchor="right", x=0.95,
                         bgcolor='rgba(0,0,0,0)',
                         traceorder="normal" # add_trace 순서대로(BTC -> Corr)
                     ),
