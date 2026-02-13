@@ -809,6 +809,473 @@ if menu == "🌎 Macro":
 
 
 
+# --- MARKET MODULE (V102: Absolute Size Enforcement) ---
+elif menu == "📈 Market":
+
+    st.title("MARKET INTELLIGENCE")
+    
+    # [A] RELATIVE PERFORMANCE ANALYZER (V116: Bitcoin Color Fixed)
+    st.markdown("---")
+    st.subheader("GLOBAL INDICES PERFORMANCE")
+    
+    # 티커 매핑
+    compare_tickers = {
+        "Bitcoin": "BTC-USD",
+        "Total World (VT)": "VT",
+        "S&P 500": "^GSPC",
+        "Nasdaq 100": "^NDX",
+        "Russell 2000": "^RUT",
+        "Shanghai": "000001.SS",
+        "Nikkei 225": "^N225",
+        "KOSPI": "^KS11",
+        "India (Nifty 500)": "^CRSLDX",
+        "Vietnam (VN)": "^VNINDEX",        
+        "FTSE 100": "^FTSE",
+        "DAX": "^GDAXI",
+        "CAC 40": "^FCHI"
+    }
+    
+    input_col1, input_col2 = st.columns([1, 2])
+    with input_col1:
+        default_start = datetime(datetime.now().year, 1, 1)
+        start_date = st.date_input("Comparison Start Date", value=default_start, key="global_perf_date")
+        
+    with input_col2:
+        selected_labels = st.multiselect(
+            "Select Indices to Compare", 
+            options=list(compare_tickers.keys()),
+            default=["Bitcoin", "Total World (VT)", "S&P 500", "Shanghai", "Nikkei 225", "KOSPI", "FTSE 100", "DAX", "CAC 40"],
+            key="global_perf_select"
+        )
+    
+    if selected_labels:
+        with st.spinner("Fetching Global Market Data..."):
+            selected_tickers = [compare_tickers[l] for l in selected_labels]
+            data = yf.download(selected_tickers, start=start_date)['Close']
+            
+            if not data.empty:
+                data = data.ffill().dropna()
+                if not data.empty:
+                    norm_df = (data / data.iloc[0] - 1) * 100
+                    
+                    fig_perf = go.Figure()
+                    for ticker in data.columns:
+                        # yfinance 결과가 단일 종목일 때와 다중 종목일 때를 대비한 라벨 추출
+                        col_name = ticker if isinstance(data.columns, pd.Index) else ticker
+                        label = [k for k, v in compare_tickers.items() if v == col_name][0]
+                        
+                        # [핵심] 비트코인 색상 및 두께 강제 지정
+                        if label == "Bitcoin":
+                            line_config = dict(width=3, color="#F7931A") # 오렌지색 + 굵게
+                        elif label == "KOSPI":
+                            line_config = dict(width=1.5, color="#00B0FF")
+                        else:
+                            line_config = dict(width=1.5) # 나머지 지수는 기본 설정
+                        
+                        fig_perf.add_trace(go.Scatter(
+                            x=norm_df.index, 
+                            y=norm_df[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=line_config, 
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_perf.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    st.plotly_chart(fig_perf, use_container_width=True)
+                    st.caption(f"기준 시점: {data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
+
+
+
+
+
+    # [B] U.S. INDEX ETF PERFORMANCE ANALYZER (V111: Date & Color Customization)
+    st.markdown("---")
+    st.subheader("U.S. INDEX ETF PERFORMANCE")
+    
+    # 1. 티커 및 커스텀 색상 매핑
+    # 성진님 요청: S&P500(Green), Russell(Gold/SPY색상), Nasdaq(Orange/RUT색상)
+    etf_config = {
+        "S&P 500 (SPY)": {"ticker": "SPY", "color": "#00E676"},   # 초록색
+        "Nasdaq 100 (QQQ)": {"ticker": "QQQ", "color": "#00B0FF"}, # 기존 러셀 색상(Orange)
+        "Dow 30 (DIA)": {"ticker": "DIA", "color": "#87CEEB"},    # 스카이블루
+        "Russell 2000 (IWM)": {"ticker": "IWM", "color": "#FF5252"} # 기존 S&P 색상(Gold)
+    }
+    
+    # 2. 입력 도구 상단 배치
+    etf_input_col1, etf_input_col2 = st.columns([1, 2])
+    
+    with etf_input_col1:
+        # [수정] 디폴트 시작 날짜를 2026년 1월 1일로 고정
+        etf_default_start = datetime(2026, 1, 1)
+        etf_start_date = st.date_input("ETF Comparison Start Date", value=etf_default_start, key="etf_start_date_v111")
+        
+    with etf_input_col2:
+        selected_etfs = st.multiselect(
+            "Select ETFs to Compare", 
+            options=list(etf_config.keys()),
+            default=list(etf_config.keys()),
+            key="etf_select_v111"
+        )
+    
+    # 3. 데이터 로드 및 수익률 계산
+    if selected_etfs:
+        with st.spinner("Fetching ETF Market Data..."):
+            target_tickers = [etf_config[l]["ticker"] for l in selected_etfs]
+            etf_data = yf.download(target_tickers, start=etf_start_date)['Close']
+            
+            if not etf_data.empty:
+                etf_data = etf_data.ffill().dropna()
+                if not etf_data.empty:
+                    etf_norm_df = (etf_data / etf_data.iloc[0] - 1) * 100
+                    
+                    fig_etf = go.Figure()
+                    for ticker in etf_data.columns:
+                        # 티커에 해당하는 라벨과 색상 추출
+                        label = [k for k, v in etf_config.items() if v["ticker"] == ticker][0]
+                        line_color = etf_config[label]["color"]
+                        
+                        fig_etf.add_trace(go.Scatter(
+                            x=etf_norm_df.index, 
+                            y=etf_norm_df[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=dict(width=2.5, color=line_color), # 요청하신 커스텀 색상 적용
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_etf.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    st.plotly_chart(fig_etf, use_container_width=True)
+                    st.caption(f"기준 시점: {etf_data.index[0].strftime('%Y-%m-%d')} (0.00% 기준)")
+
+
+
+
+
+    # [C] SECTOR PERFORMANCE ANALYZER (V118: Multi-Sector Rotation)
+    st.markdown("---")
+    st.subheader("U.S. SECTOR PERFORMANCE")
+    
+    # 1. 섹터 ETF 및 파인스크립트 컬러 매핑
+    sector_config = {
+        "S&P 500 (SPY)": {"ticker": "SPY", "color": "#FFFFFF", "width": 3}, # 기준선: 화이트 & 볼드
+        "Tech-Expanded (IGM)": {"ticker": "IGM", "color": "#1E90FF", "width": 1.5},
+        "Software (IGV)": {"ticker": "IGV", "color": "#00FFFF", "width": 1.5},
+        "Semiconductor (SOXX)": {"ticker": "SOXX", "color": "#FF00FF", "width": 1.5},
+        "Biotech (IBB)": {"ticker": "IBB", "color": "#008000", "width": 1.5},
+        "Medical Devices (IHI)": {"ticker": "IHI", "color": "#FF0000", "width": 1.5},
+        "Genomics (IDNA)": {"ticker": "IDNA", "color": "#FFFF00", "width": 1.5},
+        "Aerospace (ITA)": {"ticker": "ITA", "color": "#FFA500", "width": 1.5},
+        "Clean Energy (POW)": {"ticker": "POW", "color": "#00FF00", "width": 1.5},
+        "Oil & Gas (IEO)": {"ticker": "IEO", "color": "#808080", "width": 1.5},
+        "Utilities (IDU)": {"ticker": "IDU", "color": "#EC83B2", "width": 1.5},
+        "Consumer Disc (IYC)": {"ticker": "IYC", "color": "#800080", "width": 1.5},
+        "Financials (IYF)": {"ticker": "IYF", "color": "#008080", "width": 1.5},
+        "Fintech (ARKF)": {"ticker": "ARKF", "color": "#FFC0CB", "width": 1.5},
+        "Industrials (IYJ)": {"ticker": "IYJ", "color": "#8B4513", "width": 1.5},
+        "Materials (IYM)": {"ticker": "IYM", "color": "#484DC4", "width": 1.5}
+    }
+    
+    # 2. 입력 도구 (가로 배치)
+    sec_in_col1, sec_in_col2 = st.columns([1, 2])
+    with sec_in_col1:
+        sec_start_date = st.date_input("Sector Analysis Start Date", value=datetime(2026, 1, 1), key="sec_start")
+    
+    with sec_in_col2:
+        # 성진님이 시장의 주도주를 바로 보실 수 있게 '반도체, 테크, 소프트웨어'를 디폴트로 세팅
+        selected_sectors = st.multiselect(
+            "Select Sectors to Compare", 
+            options=list(sector_config.keys()),
+            default=["S&P 500 (SPY)", "Tech-Expanded (IGM)", "Semiconductor (SOXX)", "Software (IGV)", "Materials (IYM)", "Clean Energy (POW)", "Oil & Gas (IEO)", "Aerospace (ITA)", "Genomics (IDNA)"],
+            key="sec_select"
+        )
+    
+    # 3. 데이터 로드 및 시각화
+    if selected_sectors:
+        with st.spinner("Scanning Sectors..."):
+            sec_target_tickers = [sector_config[l]["ticker"] for l in selected_sectors]
+            sec_raw_data = yf.download(sec_target_tickers, start=sec_start_date)['Close']
+            
+            if not sec_raw_data.empty:
+                sec_raw_data = sec_raw_data.ffill().dropna()
+                if not sec_raw_data.empty:
+                    sec_norm_df = (sec_raw_data / sec_raw_data.iloc[0] - 1) * 100
+                    
+                    fig_sec = go.Figure()
+                    for ticker in sec_raw_data.columns:
+                        # yfinance 멀티인덱스 대응 및 라벨 추출
+                        t_name = ticker if isinstance(sec_raw_data.columns, pd.Index) else ticker
+                        label = [k for k, v in sector_config.items() if v["ticker"] == t_name][0]
+                        conf = sector_config[label]
+                        
+                        fig_sec.add_trace(go.Scatter(
+                            x=sec_norm_df.index, 
+                            y=sec_norm_df[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=dict(width=conf["width"], color=conf["color"]),
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_sec.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=600, # 섹터가 많으므로 높이를 조금 더 확보
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    st.plotly_chart(fig_sec, use_container_width=True)
+                    st.caption(f"기준 시점: {sec_raw_data.index[0].strftime('%Y-%m-%d')} 대비 수익률")
+
+
+
+
+
+    # [D] GROWTH vs VALUE ROTATION ANALYZER (V117)
+    st.markdown("---")
+    st.subheader("GROWTH vs VALUE")
+    
+    # 1. 입력 도구 (기존 스타일 유지, 2026/01/01 디폴트)
+    rot_in_col1, rot_in_col2 = st.columns([1, 2])
+    with rot_in_col1:
+        rot_start_date = st.date_input("Rotation Analysis Start Date", value=datetime(2026, 1, 1), key="rot_start")
+    
+    # 2. 데이터 로드 (VUG, VTV)
+    with st.spinner("Analyzing Style Rotation..."):
+        rot_tickers = ["VUG", "VTV"]
+        rot_data = yf.download(rot_tickers, start=rot_start_date)['Close']
+        
+        if not rot_data.empty:
+            rot_data = rot_data.ffill().dropna()
+            
+            # 수익률 표준화 (0% 기준)
+            rot_norm = (rot_data / rot_data.iloc[0] - 1) * 100
+            
+            # 성장주/가치주 비율 계산 (VUG / VTV)
+            # 이 비율이 상승하면 성장주 우위, 하락하면 가치주 우위입니다.
+            ratio = rot_data["VUG"] / rot_data["VTV"]
+            ratio_norm = (ratio / ratio.iloc[0] - 1) * 100 # 비율도 변화율로 변환
+            
+            # 차트 생성 (수익률 비교 + 비율 변화)
+            fig_rot = go.Figure()
+            
+            # 성장주 (VUG) - 네온 블루 계열
+            fig_rot.add_trace(go.Scatter(
+                x=rot_norm.index, y=rot_norm["VUG"],
+                mode='lines', name="Growth (VUG)",
+                line=dict(width=2.5, color="#00E5FF"),
+                hovertemplate="Growth: %{y:.2f}%<extra></extra>"
+            ))
+            
+            # 가치주 (VTV) - 따뜻한 오렌지/옐로우 계열
+            fig_rot.add_trace(go.Scatter(
+                x=rot_norm.index, y=rot_norm["VTV"],
+                mode='lines', name="Value (VTV)",
+                line=dict(width=2.5, color="#FFC107"),
+                hovertemplate="Value: %{y:.2f}%<extra></extra>"
+            ))
+            
+            # 성장주/가치주 비율 (VUG/VTV) - 화이트/실버 강조선
+            fig_rot.add_trace(go.Scatter(
+                x=ratio_norm.index, y=ratio_norm,
+                mode='lines', name="Growth/Value Ratio",
+                line=dict(width=4, color="#FFFFFF", dash='dot'), # 점선으로 구분
+                hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
+            ))
+            
+            fig_rot.update_layout(
+                hovermode="x unified",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=550,
+                margin=dict(t=10, b=10, l=10, r=10),
+                yaxis=dict(title="Performance / Ratio Change (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#666'),
+                xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_rot, use_container_width=True)
+            
+            # 3. 전략적 코멘트
+            current_ratio = ratio_norm.iloc[-1]
+            status = "성장주 우위" if current_ratio > 0 else "가치주 우위"
+            st.info(f"**현재 시장 스타일:** 기준일 대비 **{status}** 상태입니다. (Ratio 변동률: {current_ratio:.2f}%)")
+
+
+
+
+    # [F] COMMODITIES & DOLLAR INDEX RADAR (V121: Sequence Enforcement)
+    st.markdown("---")
+    st.subheader("COMMODITIES PERFORMANCE") 
+
+    # 1. 딕셔너리 순서 (정의된 순서가 레전드 순서가 됨)
+    com_config = {
+        "Dollar Index (DXY)": {"ticker": "DX-Y.NYB", "color": "#FFFFFF", "width": 3},
+        
+        "Gold": {"ticker": "GC=F", "color": "#FFD700", "width": 2},
+        "Copper": {"ticker": "HG=F", "color": "#B87333", "width": 2},        
+        "Silver": {"ticker": "SI=F", "color": "#C0C0C0", "width": 2},
+        "Palladium": {"ticker": "PA=F", "color": "#CED4DA", "width": 1.5},
+        "Platinum": {"ticker": "PL=F", "color": "#E5E4E2", "width": 1.5},
+        "WTI Crude": {"ticker": "CL=F", "color": "#FF4500", "width": 2},
+        "Brent Oil": {"ticker": "BZ=F", "color": "#8B0000", "width": 1.5},
+        "Natural Gas": {"ticker": "NG=F", "color": "#00CED1", "width": 1.5},
+    }
+    
+    # 2. 입력 도구 (기존과 동일)
+    com_in_col1, com_in_col2 = st.columns([1, 2])
+    with com_in_col1:
+        com_start_date = st.date_input("Commodity Analysis Start Date", value=datetime(2026, 1, 1), key="com_start_v121")
+    with com_in_col2:
+        selected_coms = st.multiselect(
+            "Select Commodities to Compare", 
+            options=list(com_config.keys()),
+            default=["Dollar Index (DXY)", "Gold", "Silver", "Copper", "WTI Crude", "Natural Gas"],
+            key="com_select_v121"
+        )
+    
+    # 3. 데이터 로드 및 시각화
+    if selected_coms:
+        with st.spinner("Scanning Commodity Markets..."):
+            com_target_tickers = [com_config[l]["ticker"] for l in selected_coms]
+            com_raw_data = yf.download(com_target_tickers, start=com_start_date)['Close']
+            
+            if not com_raw_data.empty:
+                # [핵심] 알파벳 순으로 정렬된 컬럼을 우리가 선택한 순서(com_target_tickers)대로 재배치
+                com_raw_data = com_raw_data.reindex(columns=com_target_tickers)
+                
+                com_raw_data = com_raw_data.ffill().dropna()
+                if not com_raw_data.empty:
+                    com_norm_df = (com_raw_data / com_raw_data.iloc[0] - 1) * 100
+                    
+                    fig_com = go.Figure()
+                    
+                    # 이제 정렬된 데이터프레임 순서대로 루프를 돌기 때문에 레전드가 순서대로 나옵니다.
+                    for ticker in com_norm_df.columns:
+                        label = [k for k, v in com_config.items() if v["ticker"] == ticker][0]
+                        conf = com_config[label]
+                        
+                        fig_com.add_trace(go.Scatter(
+                            x=com_norm_df.index, 
+                            y=com_norm_df[ticker], 
+                            mode='lines', 
+                            name=label,
+                            line=dict(width=conf["width"], color=conf["color"]),
+                            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>"
+                        ))
+                    
+                    fig_com.update_layout(
+                        hovermode="x unified",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=550,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                        xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    st.plotly_chart(fig_com, use_container_width=True)
+
+
+
+    # [G] COPPER / GOLD RATIO ANALYZER (V122: The Economic Pulse)
+    st.markdown("---")
+    st.subheader("COPPER/GOLD RATIO")
+    
+    # 1. 입력 도구 (2026/01/01 디폴트)
+    cgr_in_col1, cgr_in_col2 = st.columns([1, 2])
+    with cgr_in_col1:
+        cgr_start_date = st.date_input("Ratio Analysis Start Date", value=datetime(2026, 1, 1), key="cgr_start")
+    
+    # 2. 데이터 로드 (Copper: HG=F, Gold: GC=F)
+    with st.spinner("Calculating Economic Pulse..."):
+        cgr_tickers = ["HG=F", "GC=F"]
+        cgr_data = yf.download(cgr_tickers, start=cgr_start_date)['Close']
+        
+        if not cgr_data.empty:
+            cgr_data = cgr_data.ffill().dropna()
+            
+            # 수익률 표준화 (0% 기준)
+            cgr_norm = (cgr_data / cgr_data.iloc[0] - 1) * 100
+            
+            # Copper / Gold Ratio 계산
+            cg_ratio = cgr_data["HG=F"] / cgr_data["GC=F"]
+            cg_ratio_norm = (cg_ratio / cg_ratio.iloc[0] - 1) * 100 # 비율의 변화율
+            
+            # 차트 생성
+            fig_cgr = go.Figure()
+            
+            # Copper (HG=F) - 구리색 (#B87333)
+            fig_cgr.add_trace(go.Scatter(
+                x=cgr_norm.index, y=cgr_norm["HG=F"],
+                mode='lines', name="Copper (HG=F)",
+                line=dict(width=2, color="#B87333"),
+                hovertemplate="Copper: %{y:.2f}%<extra></extra>"
+            ))
+            
+            # Gold (GC=F) - 금색 (#FFD700)
+            fig_cgr.add_trace(go.Scatter(
+                x=cgr_norm.index, y=cgr_norm["GC=F"],
+                mode='lines', name="Gold (GC=F)",
+                line=dict(width=2, color="#FFD700"),
+                hovertemplate="Gold: %{y:.2f}%<extra></extra>"
+            ))
+            
+            # Copper / Gold Ratio - 화이트 굵은 점선 (#FFFFFF)
+            fig_cgr.add_trace(go.Scatter(
+                x=cg_ratio_norm.index, y=cg_ratio_norm,
+                mode='lines', name="Copper/Gold Ratio",
+                line=dict(width=4, color="#FFFFFF", dash='dot'),
+                hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
+            ))
+            
+            fig_cgr.update_layout(
+                hovermode="x unified",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=550,
+                margin=dict(t=10, b=10, l=10, r=10),
+                yaxis=dict(title="Performance / Ratio Change (%)", gridcolor='rgba(255,255,255,0.05)', zerolinecolor='#FFF'),
+                xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_perf_cgr if 'fig_perf_cgr' in locals() else fig_cgr, use_container_width=True)
+            
+            # 3. 전략적 진단
+            current_cgr = cg_ratio_norm.iloc[-1]
+            cgr_status = "경기 확장/인플레이션 압력" if current_cgr > 0 else "경기 둔화/디플레이션 우려"
+            st.info(f"**실물 경기 진단:** 기준일 대비 Copper/Gold 비율이 **{current_cgr:.2f}% { '상승' if current_cgr > 0 else '하락' }**하여, **{cgr_status}** 시그널을 보이고 있습니다.")
+
+
+
+
+    st.stop()
+
+
+
+
 
 
 
