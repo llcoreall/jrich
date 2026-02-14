@@ -829,7 +829,8 @@ if menu == "Macro":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_bond, use_container_width=True)
-                    st.caption("Source: Federal Reserve Bank of St. Louis (FRED)")
+                    bond_actual_base = bond_data.index[0].strftime('%Y-%m-%d')
+                    st.caption(f"Analysis Start: {bond_actual_base} | Source: Federal Reserve Bank of St. Louis (FRED)")
             except Exception as e:
                 st.error(f"FRED Data Stream Offline: {e}")
 
@@ -1594,6 +1595,10 @@ elif menu == "Crypto":
                 
                 st.plotly_chart(fig_tech, use_container_width=True)
                 
+                # [추가] 실제 데이터 시작일 기준 Base Date 캡션
+                tech_actual_base = p_disp.index[0].strftime('%Y-%m-%d')
+                st.caption(f"Analysis Start: {tech_actual_base}")
+
                 # 전략적 진단
                 curr_p = float(p_disp.iloc[-1])
                 curr_m = float(m_disp.iloc[-1])
@@ -1682,6 +1687,10 @@ elif menu == "Crypto":
                     
                     st.plotly_chart(fig_dual, use_container_width=True)
                     
+                    # [추가] 실제 데이터 시작일 기준 Base Date 캡션
+                    v_actual_base = vol_display.index[0].strftime('%Y-%m-%d')
+                    st.caption(f"Analysis Start: {v_actual_base}")
+
                     # 인포 박스 출력
                     curr_vol = float(vol_display.iloc[-1])
                     curr_price = float(price_display.iloc[-1])
@@ -1768,7 +1777,7 @@ elif menu == "Crypto":
                 else:
                     c_status = "중립적 상관관계 (Neutral)"
                 
-                st.caption(f"Status: {c_status} | Base Date: {c_disp.index[0].strftime('%Y-%m-%d')}")
+                st.caption(f"Analysis Start: {c_disp.index[0].strftime('%Y-%m-%d')} | Status: {c_status}")
                 st.info(f"**Correlation Insight:** BTC ${curr_p:,.0f} | 현재 상관계수: **{curr_c:.2f}**")
 
 
@@ -2022,6 +2031,13 @@ with st.container(border=True):
 
 st.markdown("---")
 
+
+
+
+
+
+
+
 # 3. SWAPPED: Allocation (Pie Charts) Second
 st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
@@ -2206,204 +2222,235 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
            # --------------------------------------------------------------------------------
-    # ASSET TABLE (Feedback V25-V29)
+
     # --------------------------------------------------------------------------------
-    with st.container(border=True):
-        col_header, col_delete = st.columns([8, 1])
-        with col_header:
-            st.subheader("HOLDINGS")
-            
-        # Initialize Local Asset Buffer if not present
-        if 'asset_buffer' not in st.session_state:
-            # Deep copy to prevent reference issues
-            st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
+    # 🚀 [F] PORTFOLIO YTD RELATIVE PERFORMANCE (V420: Precise Jan 2nd Start)
+    # --------------------------------------------------------------------------------
+    st.markdown("---")
+    st.header(section_labels.get("ytd_performance", "YTD PERFORMANCE"))
 
-        # Prepare data for editor from BUFFER
-        # STRATEGY: Use buffer as source of truth for the Editor to allow partial edits/adds to persist.
-        
-        # Currency Conversion for Table
-        table_fx_rate = fx_rates.get(base_currency, 1.0)
-        currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
-        
-        display_data = []
-        # Filter CASH from buffer for display (unless we want to edit cash?)
-        # Logic: Cash is managed automatically or via specific input. Let's hide CASH row from table editing.
-        buffer_assets = st.session_state['asset_buffer']
-        
-        display_map = [] # List of buffer indices
-        
-        for i, a in enumerate(buffer_assets):
-            if a['ticker'] == 'CASH': continue 
-            
-            # Convert Value
-            val_in_base = float(a.get('value_usd', 0.0)) * table_fx_rate
-            
-            price = a.get('current_price', 0.0)
-            if price == 0: price = a.get('avg_price', 0.0)
-            
-            val_calc = price * a.get('quantity', 0.0) * table_fx_rate
-            
-            display_data.append({
-                "DELETE": False, # V49: Explicit Delete Checkbox for Mobile
-                "TICKER": str(a.get('ticker', '')),
-                "CLASS": str(a.get('asset_class', '')),
-                "SECTOR": str(a.get('sector', '')),
-                "QTY": f"{float(a.get('quantity', 0.0)):.4f}", 
-                "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", 
-                "CURRENT PRICE": f"${float(price):,.2f}", 
-                "VALUE": f"{currency_symbol}{val_calc:,.2f}" 
-            })
-            display_map.append(i)
-        
-        df_display = pd.DataFrame(display_data)
-        
-        # --------------------------------------------------------------------------------
-        # EDITING LOGIC V8 (Buffer + Native Delete + Checkbox Delete)
-        # --------------------------------------------------------------------------------
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
-        # Helper to process edits
-        def save_edits():
-            state = st.session_state["holdings_editor"]
-            edited_rows = state.get("edited_rows", {})
-            deleted_rows = state.get("deleted_rows", [])
-            added_rows = state.get("added_rows", []) 
-            
-            if not edited_rows and not deleted_rows and not added_rows:
-                return
-
-            print(f"DEBUG: Callback triggered. Changes: {state}")
-            
-            buffer = st.session_state['asset_buffer']
-            updates_made = False
-            
-            # 0. IDENTIFY CHECKBOX DELETES (V49)
-            checkbox_deletes = []
-            for idx, changes in edited_rows.items():
-                if changes.get("DELETE") is True:
-                    # User checked the Delete box
-                    checkbox_deletes.append(int(idx))
-            
-            # Combine with native deletes
-            # Use set to avoid duplicates if user somehow did both
-            all_indices_to_delete = set(deleted_rows + checkbox_deletes)
-            
-            # 1. EXECUTE DELETES
-            if all_indices_to_delete:
-                rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
-                for buf_idx in rows_to_delete:
-                    if buf_idx < len(buffer):
-                        removed = buffer.pop(buf_idx)
-                        print(f"DEBUG: Removed {removed.get('ticker')} via Delete Logic.")
-                        updates_made = True
-            
-            # 2. HANDLE EDITS (Edits to existing rows)
-            # Strategy: Skip rows that were just deleted.
-            
-            for idx, changes in edited_rows.items():
-                if int(idx) in all_indices_to_delete: continue 
+    with st.spinner("Analyzing 2026 Asset Performance..."):
+        if 'df_assets' in locals() and not df_assets.empty:
+            try:
+                # 1. 티커 추출 및 정제
+                raw_tickers = df_assets['ticker'].dropna().unique().tolist()
+                portfolio_tickers = [str(t).strip().upper() for t in raw_tickers if t not in ['KRW', 'USD', 'CAD', 'CASH', '현금']]
                 
-                if idx < len(display_map):
-                    buf_idx = display_map[idx]
-                    if buf_idx < len(buffer): # Safety check
-                        asset = buffer[buf_idx]
+                if portfolio_tickers:
+                    # 데이터 호출은 분모 가격 확보를 위해 12월 말부터 유지
+                    fetch_start = datetime(2025, 12, 28) 
+                    y_data = yf.download(portfolio_tickers, start=fetch_start, progress=False)
+                    
+                    if not y_data.empty:
+                        p_df = y_data['Close'] if 'Close' in y_data else y_data
+                        p_df = p_df.ffill().dropna(how='all')
                         
-                        # Note: 'DELETE' change might be in 'changes' but false (uncheck?)
-                        # If it was True, we already handled it. If False, nothing to do.
+                        # [핵심] 차트 시작점을 2026년 1월 2일로 고정
+                        target_start = datetime(2026, 1, 2).date()
+                        # 1월 2일 이후 데이터만 필터링
+                        display_df = p_df.loc[p_df.index.date >= target_start]
                         
-                        if "QTY" in changes:
-                            try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
-                            except: pass
-                            updates_made = True
-                        
-                        if "AVG COST" in changes:
-                            try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
-                            except: pass
-                            updates_made = True
-
-                        if "SECTOR" in changes:
-                            asset['sector'] = str(changes["SECTOR"]).strip()
-                            updates_made = True
+                        if not display_df.empty:
+                            # [정규화] 1월 2일 가격을 0.00% 기준으로 설정
+                            base_price = display_df.iloc[0]
+                            ytd_perf = (display_df / base_price - 1) * 100
                             
-                        if "CLASS" in changes:
-                            asset['asset_class'] = str(changes["CLASS"]).strip()
-                            updates_made = True
-                        
-                        if "TICKER" in changes:
-                            asset['ticker'] = str(changes["TICKER"]).strip().upper()
-                            updates_made = True
+                            # 2. 차트 생성
+                            fig_ytd = go.Figure()
+                            
+                            # BTC 우선 정렬
+                            sorted_names = sorted(ytd_perf.columns if isinstance(ytd_perf, pd.DataFrame) else [portfolio_tickers[0]], 
+                                                key=lambda x: "BTC" not in x)
+                            
+                            for ticker in sorted_names:
+                                is_btc = "BTC" in ticker
+                                y_vals = ytd_perf[ticker] if isinstance(ytd_perf, pd.DataFrame) else ytd_perf
+                                
+                                fig_ytd.add_trace(go.Scatter(
+                                    x=ytd_perf.index, 
+                                    y=y_vals, 
+                                    name=ticker,
+                                    line=dict(width=1.5 if is_btc else 1.5, color="#F7931A" if is_btc else None),
+                                    hovertemplate=f"<b>{ticker}</b>: %{{y:.2f}}%<extra></extra>"
+                                ))
+                            
+                            fig_ytd.update_layout(
+                                hovermode="x unified", height=450,
+                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                margin=dict(t=20, b=10, l=10, r=10),
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                                yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"),
+                                xaxis=dict(
+                                    range=[target_start, ytd_perf.index[-1]], # X축 시작점 강제 고정
+                                    gridcolor='rgba(255,255,255,0.05)'
+                                )
+                            )
+                            
+                            fig_ytd.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)")
+                            
+                            st.plotly_chart(fig_ytd, use_container_width=True)
+                            
+                            # 캡션 업데이트
+                            actual_base_date = display_df.index[0].strftime('%Y-%m-%d')
+                            st.caption(f"Base Date: {actual_base_date} (Normalized to 0.00%)")
+                            
+                            # 성과 요약
+                            last_p = ytd_perf.iloc[-1]
+                            if isinstance(last_p, pd.Series):
+                                st.info(f"YTD TOP: **{last_p.idxmax()}** ({last_p.max():+.2f}%)")
+                else:
+                    st.warning("분석할 자산이 없습니다.")
+            except Exception as e:
+                st.error(f"YTD 엔진 오류: {str(e)}")
+        else:
+            st.info("포트폴리오 데이터를 로딩 중입니다... ㅋ")
+    
+    st.markdown("---")
+
+# ASSET TABLE (Feedback V25-V29)
+    # --------------------------------------------------------------------------------
+
+    # 1. 헤더만 컬럼을 사용합니다.
+    col_header, col_delete = st.columns([8, 1])
+    with col_header:
+        st.header("HOLDINGS")
             
-            # 3. HANDLE ADDS
-            if added_rows:
-                for new_row in added_rows:
-                    raw_ticker = new_row.get('TICKER', '').strip().upper()
-                    
-                    # Manual Override Check (If user typed in Class/Sector on Add row?)
-                    # Streamlit Add Row usually gives default values unless columns are required/defaulted.
-                    # We will Auto-Populate but allow overwrite if they edit it immediately after.
-                    
-                    final_class = "Stock"
-                    final_sector = "Unknown"
-                    curr_price = 0.0
-                    
-                    if raw_ticker:
-                        info = md.get_asset_info(raw_ticker)
-                        if info:
-                            final_class = info.get('asset_class', 'Stock')
-                            final_sector = info.get('sector', 'Unknown')
-                            curr_price = md.get_current_price(raw_ticker)
-                    
-                    # If user provided input in params (unlikely for new row unless typed), use it.
-                    if new_row.get('CLASS'): final_class = new_row.get('CLASS')
-                    if new_row.get('SECTOR'): final_sector = new_row.get('SECTOR')
-                    
-                    try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
-                    except: qty = 0.0
-                    try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
-                    except: avg = 0.0
-                    
-                    new_asset = {
-                        "ticker": raw_ticker,
-                        "quantity": qty,
-                        "avg_price": avg,
-                        "sector": final_sector,
-                        "asset_class": final_class,
-                        "value_usd": 0.0, 
-                        "current_price": curr_price
-                    }
-                    buffer.append(new_asset)
-                    print(f"DEBUG: Added new row to buffer. Ticker: {raw_ticker}")
+    # 2. 데이터 준비 로직 (컬럼 밖으로 탈출: 들여쓰기 제거)
+    # Initialize Local Asset Buffer if not present
+    if 'asset_buffer' not in st.session_state:
+        st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
+
+    table_fx_rate = fx_rates.get(base_currency, 1.0)
+    currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
+    
+    display_data = []
+    buffer_assets = st.session_state['asset_buffer']
+    display_map = [] 
+    
+    for i, a in enumerate(buffer_assets):
+        if a['ticker'] == 'CASH': continue 
+        
+        val_in_base = float(a.get('value_usd', 0.0)) * table_fx_rate
+        price = a.get('current_price', 0.0)
+        if price == 0: price = a.get('avg_price', 0.0)
+        val_calc = price * a.get('quantity', 0.0) * table_fx_rate
+        
+        display_data.append({
+            "DELETE": False, 
+            "TICKER": str(a.get('ticker', '')),
+            "CLASS": str(a.get('asset_class', '')),
+            "SECTOR": str(a.get('sector', '')),
+            "QTY": f"{float(a.get('quantity', 0.0)):.4f}", 
+            "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", 
+            "CURRENT PRICE": f"${float(price):,.2f}", 
+            "VALUE": f"{currency_symbol}{val_calc:,.2f}" 
+        })
+        display_map.append(i)
+    
+    df_display = pd.DataFrame(display_data)
+
+    # 3. Save Edits 함수 (동일하게 유지)
+    def save_edits():
+        state = st.session_state["holdings_editor"]
+        edited_rows = state.get("edited_rows", {})
+        deleted_rows = state.get("deleted_rows", [])
+        added_rows = state.get("added_rows", []) 
+        
+        if not edited_rows and not deleted_rows and not added_rows:
+            return
+
+        buffer = st.session_state['asset_buffer']
+        updates_made = False
+        
+        checkbox_deletes = [int(idx) for idx, changes in edited_rows.items() if changes.get("DELETE") is True]
+        all_indices_to_delete = set(deleted_rows + checkbox_deletes)
+        
+        if all_indices_to_delete:
+            rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
+            for buf_idx in rows_to_delete:
+                if buf_idx < len(buffer):
+                    buffer.pop(buf_idx)
                     updates_made = True
-
-            if updates_made:
-                valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
-                cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
-                final_pm_assets = valid_assets
-                if cash_asset:
-                    final_pm_assets.append(cash_asset)
+        
+        for idx, changes in edited_rows.items():
+            if int(idx) in all_indices_to_delete: continue 
+            if int(idx) < len(display_map):
+                buf_idx = display_map[int(idx)]
+                if buf_idx < len(buffer):
+                    asset = buffer[buf_idx]
+                    if "QTY" in changes:
+                        try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
+                        except: pass
+                        updates_made = True
+                    if "AVG COST" in changes:
+                        try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
+                        except: pass
+                        updates_made = True
+                    if "SECTOR" in changes:
+                        asset['sector'] = str(changes["SECTOR"]).strip()
+                        updates_made = True
+                    if "CLASS" in changes:
+                        asset['asset_class'] = str(changes["CLASS"]).strip()
+                        updates_made = True
+                    if "TICKER" in changes:
+                        asset['ticker'] = str(changes["TICKER"]).strip().upper()
+                        updates_made = True
+        
+        if added_rows:
+            for new_row in added_rows:
+                raw_ticker = new_row.get('TICKER', '').strip().upper()
+                final_class = new_row.get('CLASS', 'Stock')
+                final_sector = new_row.get('SECTOR', 'Unknown')
+                curr_price = 0.0
+                if raw_ticker:
+                    info = md.get_asset_info(raw_ticker)
+                    if info:
+                        final_class = info.get('asset_class', 'Stock')
+                        final_sector = info.get('sector', 'Unknown')
+                        curr_price = md.get_current_price(raw_ticker)
                 
-                pm.data['assets'] = final_pm_assets
-                pm.save_data()
-                st.toast("✅ Portfolio Updated")
+                try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
+                except: qty = 0.0
+                try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
+                except: avg = 0.0
+                
+                buffer.append({
+                    "ticker": raw_ticker, "quantity": qty, "avg_price": avg,
+                    "sector": final_sector, "asset_class": final_class,
+                    "value_usd": 0.0, "current_price": curr_price
+                })
+                updates_made = True
 
-        # Configure Column Config
-        st.data_editor(
-            df_display,
-            column_config={
-                "DELETE": st.column_config.CheckboxColumn("🗑️", help="Select to delete", default=False, width="small"),
-                "TICKER": st.column_config.TextColumn("Ticker", disabled=False), 
-                "CLASS": st.column_config.TextColumn("Class", disabled=False), # Editable V31
-                "SECTOR": st.column_config.TextColumn("Sector", disabled=False), # Editable V31
-                "QTY": st.column_config.TextColumn("Quantity", disabled=False), 
-                "AVG COST": st.column_config.TextColumn("Avg Cost", disabled=False), 
-                "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", disabled=True), 
-                "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", disabled=True) 
-            },
-            hide_index=True,
-            use_container_width=True,
-            key="holdings_editor",
-            on_change=save_edits,
-            num_rows="dynamic" 
-        )
+        if updates_made:
+            valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
+            cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
+            final_pm_assets = valid_assets + ([cash_asset] if cash_asset else [])
+            pm.data['assets'] = final_pm_assets
+            pm.save_data()
+            st.toast("✅ Portfolio Updated")
+
+    # 4. [핵심] 테이블 출력 (가장 왼쪽 벽에 붙여서 전체 너비 확보)
+    st.data_editor(
+        df_display,
+        column_config={
+            "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
+            "TICKER": st.column_config.TextColumn("Ticker", width="small"), 
+            "CLASS": st.column_config.TextColumn("Class", width="medium"),
+            "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
+            "QTY": st.column_config.TextColumn("Quantity", width="small"), 
+            "AVG COST": st.column_config.TextColumn("Avg Cost", width="small"), 
+            "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
+            "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="medium", disabled=True) # 남는 공간 확보
+        },
+        hide_index=True,
+        use_container_width=True, # 🚀 이제 8:1 칸을 벗어났으므로 전체 너비를 씁니다!
+        key="holdings_editor",
+        on_change=save_edits,
+        num_rows="dynamic" 
+    )
 
 st.markdown("---")
 
