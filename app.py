@@ -462,6 +462,12 @@ manual_risk = pm.get_setting('risk_inputs', {
 
 
 
+
+
+
+
+
+
 # --- Sidebar ---
 with st.sidebar:
     # [A] 최상단 정보 (ID & Logout)
@@ -1016,8 +1022,15 @@ if menu == "Macro":
                 except:
                     pass
 
+    # [V93] 매크로 섹션 최종 출처 표기
+    st.caption("Source: Federal Reserve Bank of St. Louis (FRED)")
+
     # 매크로 섹션의 진짜 마지막 지점에서 딱 한 번 멈춥니다.
     st.stop()
+
+
+
+
 
 
 
@@ -1121,7 +1134,7 @@ elif menu == "Market":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_perf, use_container_width=True)
-                    st.caption(f"Base Date: {data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+                    st.caption(f"Base Date: {data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
@@ -1211,7 +1224,7 @@ elif menu == "Market":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_etf, use_container_width=True)
-                    st.caption(f"Base Date: {etf_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+                    st.caption(f"Base Date: {etf_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
@@ -1307,7 +1320,7 @@ elif menu == "Market":
                     )
                 )
                 st.plotly_chart(fig_sec, use_container_width=True)
-                st.caption(f"Base Date: {sec_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+                st.caption(f"Base Date: {sec_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
@@ -1388,12 +1401,12 @@ elif menu == "Market":
             )
             
             st.plotly_chart(fig_rot, use_container_width=True)
-            st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+            st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
             # 3. 전략적 코멘트
             current_ratio = ratio_norm.iloc[-1]
             status = "성장주 우위" if current_ratio > 0 else "가치주 우위"
-            st.info(f"**현재 시장 스타일:** 기준일 대비 **{status}** 상태입니다. (Ratio 변동률: {current_ratio:.2f}%)")
+            st.info(f"**Insight:** 기준일 대비 **{status}** 상태입니다. (Ratio 변동률: {current_ratio:.2f}%)")
 
 
 
@@ -1486,7 +1499,7 @@ elif menu == "Market":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     st.plotly_chart(fig_com, use_container_width=True)
-                    st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+                    st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
@@ -1564,12 +1577,12 @@ elif menu == "Market":
             )
             
             st.plotly_chart(fig_perf_cgr if 'fig_perf_cgr' in locals() else fig_cgr, use_container_width=True)
-            st.caption(f"Base Date: {cgr_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+            st.caption(f"Base Date: {cgr_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
             
             # 3. 전략적 진단
             current_cgr = cg_ratio_norm.iloc[-1]
             cgr_status = "경기 확장/인플레이션 압력" if current_cgr > 0 else "경기 둔화/디플레이션 우려"
-            st.info(f"**실물 경기 진단:** 기준일 대비 Copper/Gold 비율이 **{current_cgr:.2f}% { '상승' if current_cgr > 0 else '하락' }**하여, **{cgr_status}** 시그널을 보이고 있습니다.")
+            st.info(f"**Insight:** 기준일 대비 Copper/Gold 비율이 **{current_cgr:.2f}% { '상승' if current_cgr > 0 else '하락' }**하여, **{cgr_status}** 시그널을 보이고 있습니다.")
 
     st.stop()
 
@@ -1664,7 +1677,7 @@ elif menu == "Crypto":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, traceorder="normal")
                     )
                     st.plotly_chart(fig_crypto, use_container_width=True)
-                    st.caption(f"Base Date: {c_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+                    st.caption(f"Base Date: {c_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
@@ -1750,14 +1763,14 @@ elif menu == "Crypto":
                 
                 # [추가] 실제 데이터 시작일 기준 Base Date 캡션
                 tech_actual_base = p_disp.index[0].strftime('%Y-%m-%d')
-                st.caption(f"Analysis Start: {tech_actual_base}")
+                st.caption(f"Analysis Start: {tech_actual_base} | Source: Yahoo Finance & Global Exchange Data")
 
                 # 전략적 진단
                 curr_p = float(p_disp.iloc[-1])
                 curr_m = float(m_disp.iloc[-1])
                 curr_rsi = float(rsi_disp.iloc[-1])
                 dist = ((curr_p / curr_m) - 1) * 100
-                st.info(f"**Insight:** BTC vs 217W Median: **{dist:.2f}%** | RSI: **{curr_rsi:.2f}**")
+                st.info(f"**Current:** BTC vs 217W Median: **{dist:.2f}%** | RSI: **{curr_rsi:.2f}**")
             else:
                 st.warning("데이터가 부족합니다.")
 
@@ -1842,12 +1855,12 @@ elif menu == "Crypto":
                     
                     # [추가] 실제 데이터 시작일 기준 Base Date 캡션
                     v_actual_base = vol_display.index[0].strftime('%Y-%m-%d')
-                    st.caption(f"Analysis Start: {v_actual_base}")
+                    st.caption(f"Analysis Start: {v_actual_base} | Source: Yahoo Finance & Global Exchange Data")
 
                     # 인포 박스 출력
                     curr_vol = float(vol_display.iloc[-1])
                     curr_price = float(price_display.iloc[-1])
-                    st.info(f"**Market Status:** BTC ${curr_price:,.0f} | Volatility {curr_vol:.2f}%")
+                    st.info(f"**Current:** BTC ${curr_price:,.0f} | Volatility {curr_vol:.2f}%")
 
 
 
@@ -1930,11 +1943,8 @@ elif menu == "Crypto":
                 else:
                     c_status = "중립적 상관관계 (Neutral)"
                 
-                st.caption(f"Analysis Start: {c_disp.index[0].strftime('%Y-%m-%d')} | Status: {c_status}")
-                st.info(f"**Correlation Insight:** BTC ${curr_p:,.0f} | 현재 상관계수: **{curr_c:.2f}**")
-
-
-
+                st.caption(f"Analysis Start: {c_disp.index[0].strftime('%Y-%m-%d')} | Source: Yahoo Finance & Global Exchange Data")
+                st.info(f"**Insight:** BTC ${curr_p:,.0f} | 현재 상관계수: **{curr_c:.2f}**, {c_status}")
 
 
 
@@ -2026,12 +2036,12 @@ elif menu == "Crypto":
                 st.plotly_chart(fig_bgd, use_container_width=True)
                 
                 # 하단 캡션 추가
-                st.caption(f"Base Date: {bgd_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%)")
+                st.caption(f"Base Date: {bgd_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
                 
                 # 4. 전략적 코멘트
                 current_dxy = bgd_norm[dxy_col].iloc[-1]
                 current_ratio_gain = bg_ratio_norm.iloc[-1]
-                st.info(f"**Market Dynamics:** 달러 인덱스는 기준일 대비 **{current_dxy:.2f}% {'강세' if current_dxy > 0 else '약세'}**이며, 금 대비 비트코인 구매력은 **{current_ratio_gain:.2f}% {'확장' if current_ratio_gain > 0 else '축소'}** 중입니다.")
+                st.info(f"**Insight:** 달러 인덱스는 기준일 대비 **{current_dxy:.2f}% {'강세' if current_dxy > 0 else '약세'}**이며, 금 대비 비트코인 구매력은 **{current_ratio_gain:.2f}% {'확장' if current_ratio_gain > 0 else '축소'}** 중입니다.")
 
 
 
@@ -2043,7 +2053,10 @@ elif menu == "Crypto":
 
 
 
-# --- MARKET MODULE (V102: Absolute Size Enforcement) ---
+
+
+
+# --- MARKET MODULE (V103: USD/DXY Priority & Source ㅋ) ---
 elif menu == "Bitcoin Standard":
     st.title("BITCOIN STANDARD a.k.a FOREX")
 
@@ -2052,37 +2065,41 @@ elif menu == "Bitcoin Standard":
     st.subheader("BTC STANDARD: FIAT DEVALUATION")
     st.info("비트코인(BTC) 대비 각 법정화폐의 실질 구매력 변화를 추적합니다. (BTC Standard = 1.00)")
 
-    # 1. 분석 기간 선택 (통합 컨트롤) ㅋ
+    # 1. 분석 기간 선택
     btc_col1, btc_col2 = st.columns([1, 2])
     with btc_col1:
-        # 디폴트는 오늘 기준 1년 전으로 설정 ㅋ
+        # 성진님의 요청에 따라 2023-01-01 유지 ㅋ
         btc_default_start = datetime(2023, 1, 1)
         btc_analysis_start = st.date_input("Analysis Start Date", value=btc_default_start, key="btc_std_global_date")
 
-    # 2. 데이터 로드 및 구매력 환산 로직
+    # 2. 데이터 로드 로직 (DXY를 USD라는 이름으로 추가 ㅋ)
     fiat_tickers = {
-        "CAD": "CAD=X", "AUD": "AUD=X", "CHF": "CHF=X",
-        "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
+        "USD": "DX-Y.NYB", "CAD": "CAD=X", "AUD": "AUD=X", 
+        "CHF": "CHF=X", "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
     }
 
     @st.cache_data(ttl=3600)
-    def get_btc_standard_final(tickers_dict, start_date_str):
+    def get_btc_standard_final_v103(tickers_dict, start_date_str):
         combined_list = []
         try:
-            # BTC-USD 가격 로드
             btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
+            # [중요] unit_config 순서대로 돌아서 레전드 순서 보장 ㅋ
             for name, ticker in tickers_dict.items():
                 fiat_raw = yf.download(ticker, start=start_date_str, interval='1d', progress=False)['Close']
                 if not fiat_raw.empty:
-                    # MultiIndex 방어
                     f_series = fiat_raw[ticker] if isinstance(fiat_raw, pd.DataFrame) else fiat_raw
                     b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
                     
-                    # [V1150 핵심] 구매력 역산: 1 Fiat 당 BTC 가치 ㅋ
-                    # 비트코인이 비싸질수록 1단위 화폐로 살 수 있는 BTC는 줄어듦(우하향)
-                    btc_per_fiat = 1 / (f_series * b_series)
+                    if name == "USD":
+                        # DXY 기반 USD 가치 역산 (지수 100 기준 보정 ㅋ)
+                        # DXY가 높을수록 달러가 강하므로, 1달러로 살 수 있는 BTC는 상대적으로 많아짐 ㅋ
+                        btc_per_fiat = (f_series / 100) / b_series
+                    else:
+                        # 일반 환율 기반 구매력 역산 ㅋ
+                        btc_per_fiat = 1 / (f_series * b_series)
+                    
                     btc_per_fiat.name = name
                     combined_list.append(btc_per_fiat)
             
@@ -2091,83 +2108,76 @@ elif menu == "Bitcoin Standard":
         except: pass
         return pd.DataFrame()
 
-    btc_df = get_btc_standard_final(fiat_tickers, btc_analysis_start.strftime('%Y-%m-%d'))
+    btc_df = get_btc_standard_final_v103(fiat_tickers, btc_analysis_start.strftime('%Y-%m-%d'))
 
     if not btc_df.empty and len(btc_df) > 1:
-        # 3. 상대적 구매력 변화 (%) 계산 (시작점 = 0%)
-        # [V1150] 이제 값이 작아질수록 0% 아래 마이너스 영역으로 내려갑니다 ㅋ
         btc_rel_perf = (btc_df / btc_df.iloc[0] - 1) * 100
         
-        # 4. 차트 생성 (Global Performance 스타일 동기화)
+        # 3. 차트 생성
         fig_btc_melt = go.Figure()
-        colors = {"CAD": "#FF5252", "AUD": "#FFD740", "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"}
+        # USD: 화이트, 나머지 컬러 유지 ㅋ
+        colors = {
+            "USD": "#FFFFFF", "CAD": "#FF5252", "AUD": "#FFD740", 
+            "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"
+        }
         
-        for name in ["CAD", "AUD", "CHF", "JPY", "CNY", "KRW"]:
+        # 설정한 순서(USD 우선)대로 Trace 추가 ㅋ
+        for name in fiat_tickers.keys():
             if name in btc_rel_perf.columns:
+                is_usd = (name == "USD")
                 fig_btc_melt.add_trace(go.Scatter(
                     x=btc_rel_perf.index, y=btc_rel_perf[name],
                     mode='lines', name=name,
-                    line=dict(width=2, color=colors.get(name)),
+                    line=dict(
+                        width=3 if is_usd else 1.5, 
+                        color=colors.get(name),
+                        dash='dot' if is_usd else 'solid' # USD는 점선 강조 ㅋ
+                    ),
                     connectgaps=True,
                     hovertemplate=f"<b>{name}</b>: %{{y:.2f}}% (Purchasing Power)<extra></extra>"
                 ))
 
-        # Y축 범위 설정: 하락폭을 강조하기 위해 상단 마진은 적게, 하단 마진은 넉넉하게 ㅋ
-        y_min = btc_rel_perf.min().min()
-        y_max = btc_rel_perf.max().max()
+        y_min, y_max = btc_rel_perf.min().min(), btc_rel_perf.max().max()
         y_padding = abs(y_max - y_min) * 0.15
 
         fig_btc_melt.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=550,
-            margin=dict(l=10, r=10, t=10, b=10),
-            hovermode="x unified",
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.3)"),
-            xaxis=dict(showgrid=False),
-            yaxis=dict(
-                showgrid=True, gridcolor="#333", side="left", 
-                title="Purchasing Power Change (%)",
-                # 시작점이 0%이므로 range를 데이터에 맞춰 유동적으로 설정 ㅋ
-                range=[y_min - y_padding, y_max + y_padding]
-            )
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=550, margin=dict(l=10, r=10, t=10, b=10), hovermode="x unified",
+            legend=dict(
+                orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, 
+                bgcolor="rgba(0,0,0,0.3)", traceorder="normal"
+            ),
+            yaxis=dict(showgrid=True, gridcolor="#333", title="Purchasing Power Change (%)", range=[y_min - y_padding, y_max + y_padding])
         )
 
         st.plotly_chart(fig_btc_melt, use_container_width=True)
         
-        # 하단 캡션: 팩트 폭격 ㅋ
+        # [V103] 캡션 업데이트: Source 추가 완료! ㅋ
         actual_start_str = btc_rel_perf.index[0].strftime('%Y-%m-%d')
-        st.caption(f"Analysis Start: {actual_start_str} | Base: 0.00% (Fiat is melting against BTC Standard...)")
+        st.caption(f"Analysis Start: {actual_start_str} | Source: Yahoo Finance & Global Exchange Data")
         
         # 전략적 코멘트
         worst_fiat = btc_rel_perf.iloc[-1].idxmin()
         worst_val = btc_rel_perf.iloc[-1].min()
-        st.error(f"**Fiat Devaluation:** {actual_start_str} 이후 **{worst_fiat}**의 구매력은 비트코인 대비 **{worst_val:.2f}%** 하락했습니다.")
-
-    else:
-        st.info("비트코인 표준 전송망을 연결 중입니다...")
+        st.error(f"**Worst Fiat Devaluation:** {actual_start_str} 이후 **{worst_fiat}**의 구매력은 비트코인 대비 **{worst_val:.2f}%** 하락했습니다.")
 
 
 
 
-
-    # [B] SATOSHIS PER UNIT FIAT: THE SCARCITY TRACKER
+    # [B] SATOSHIS PER UNIT FIAT: THE SCARCITY TRACKER (V1245)
     st.markdown("---")
     st.subheader("SATOSHIS PER UNIT FIAT (SCARCITY)")
-    st.info("각 통화 '1단위'로 구매 가능한 사토시(Sats)의 개수를 추적합니다. (1 BTC = 100,000,000 Sats)")
+    st.info("각 통화 '1단위'로 구매 가능한 사토시(Sats)의 개수를 추적합니다. (USD는 달러 인덱스 기준)")
 
-    # 1. 설정: 각 통화의 '기본 단위'
+    # 1. 설정: 이름을 USD로 변경하고 단위는 1로 설정 ㅋ
     unit_config = {
-        "CAD": 1,      "AUD": 1,      "KRW": 1000,   
-        "JPY": 100,    "CNY": 10,     "CHF": 1       
+        "USD": 1,      "CAD": 1,      "AUD": 1,      
+        "KRW": 1000,   "JPY": 100,    "CNY": 10,     "CHF": 1       
     }
 
-    # 2. 분석 시작일 설정 (오류 발생 지점 수정 ㅋ)
+    # 2. 분석 시작일 설정
     sats_col1, sats_col2 = st.columns([1, 2])
     with sats_col1:
-        # 디폴트는 성진님의 선호대로 2023년 1월 1일 ㅋ
         sats_default_start = datetime(2023, 1, 1)
         sats_start_date = st.date_input(
             "Analysis Start Date", 
@@ -2176,14 +2186,14 @@ elif menu == "Bitcoin Standard":
         )
 
     @st.cache_data(ttl=3600)
-    def get_sats_per_fiat_data_v1240(start_date_str):
+    def get_sats_per_fiat_data_v1245(start_date_str):
         try:
             # BTC 가격 로드
             btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
-            # 통화 티커 생성
-            tickers = {k: f"{k}=X" for k in unit_config.keys()}
+            # 티커 생성 (이름은 USD지만 데이터는 DXY 티커를 가져옴 ㅋ)
+            tickers = {k: (f"{k}=X" if k != "USD" else "DX-Y.NYB") for k in unit_config.keys()}
             fiat_raw = yf.download(list(tickers.values()), start=start_date_str, interval='1d', progress=False)['Close']
             
             combined_list = []
@@ -2192,51 +2202,70 @@ elif menu == "Bitcoin Standard":
                 f_series = fiat_raw[ticker] if isinstance(fiat_raw, pd.DataFrame) else fiat_raw
                 b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
                 
-                # 사토시 환산 로직 (1단위 Fiat가 몇 Sats인가) ㅋ
-                sats_per_unit = (unit / f_series) / b_series * 100_000_000
+                # [핵심] 사토시 환산 로직 분기 ㅋ
+                if fiat == "USD":
+                    # DXY 지수는 100을 기준으로 달러 가치를 환산 (바닥에 붙지 않게 보정 ㅋ)
+                    sats_per_unit = (f_series / 100) / b_series * 100_000_000
+                else:
+                    # 일반 환율 (CAD, KRW 등)은 기존 공식 유지
+                    sats_per_unit = (unit / f_series) / b_series * 100_000_000
+                
                 sats_per_unit.name = fiat
                 combined_list.append(sats_per_unit)
                 
             return pd.concat(combined_list, axis=1).ffill().dropna()
         except: return pd.DataFrame()
 
-    # [V1240 핵심] 위에서 선언한 sats_start_date를 사용하여 호출 ㅋ
-    sats_df = get_sats_per_fiat_data_v1240(sats_start_date.strftime('%Y-%m-%d'))
+    sats_df = get_sats_per_fiat_data_v1245(sats_start_date.strftime('%Y-%m-%d'))
 
     if not sats_df.empty:
-        # 3. 차트 생성 (수치 중심 ㅋ)
+        # 3. 차트 생성
         fig_sats = go.Figure()
-        colors = {"CAD": "#FF5252", "AUD": "#FFD740", "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"}
+        # USD(DXY기반): 화이트 설정 ㅋ
+        colors = {
+            "USD": "#FFFFFF", "CAD": "#FF5252", "AUD": "#FFD740", 
+            "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"
+        }
         
         for fiat in unit_config.keys():
             if fiat in sats_df.columns:
+                is_usd_base = (fiat == "USD")
+                # 레전드 이름 형식: "1 USD", "1000 KRW" ㅋ
+                legend_name = f"{unit_config[fiat]} {fiat}"
+                
                 fig_sats.add_trace(go.Scatter(
                     x=sats_df.index, y=sats_df[fiat],
-                    mode='lines', name=f"Sats per {unit_config[fiat]} {fiat}",
-                    line=dict(width=2, color=colors.get(fiat)),
-                    hovertemplate=f"<b>{fiat}</b>: %{{y:,.0f}} Sats<extra></extra>"
+                    mode='lines', 
+                    name=legend_name,
+                    line=dict(
+                        width=3 if is_usd_base else 1.5, 
+                        color=colors.get(fiat),
+                        dash='dot' if is_usd_base else 'solid'
+                    ),
+                    hovertemplate=f"<b>{legend_name}</b>: %{{y:,.0f}} Sats<extra></extra>"
                 ))
 
         fig_sats.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=500,
-            margin=dict(l=10, r=10, t=20, b=40),
-            hovermode="x unified",
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=500, margin=dict(l=10, r=10, t=20, b=40), hovermode="x unified",
             yaxis_title="Satoshi Amount (Sats)",
-            legend=dict(orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.3)")
+            legend=dict(
+                orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, 
+                bgcolor="rgba(0,0,0,0.3)", traceorder="normal"
+            )
         )
-
+        # [V1246: 차트 출력 및 캡션 추가 ㅋ]
         st.plotly_chart(fig_sats, use_container_width=True)
+        
+        # 성진님이 찾으시던 바로 그 Base Date 캡션! ㅋ
+        actual_sats_base = sats_df.index[0].strftime('%Y-%m-%d')
+        st.caption(f"Analysis Start: {actual_sats_base} | Source: Yahoo Finance & Global Exchange Data")
         
         # 4. 실전 경고 리포트
         current_krw_sats = sats_df['KRW'].iloc[-1]
-        st.warning(f"**Scarcity Alert:** 현재 1,000원으로 살 수 있는 비트코인은 단 **{current_krw_sats:,.0f} 사토시**뿐입니다. 화폐 발행이 계속될수록 이 숫자는 기하급수적으로 줄어듭니다.")
+        st.warning(f"**Scarcity Alert:** 현재 1,000원으로 살 수 있는 비트코인은 단 **{current_krw_sats:,.0f} 사토시**뿐입니다.")
     else:
         st.info("데이터를 분석하여 사토시 단위로 변환 중입니다...")
-
-
 
 
 
@@ -2322,11 +2351,9 @@ elif menu == "Bitcoin Standard":
             yaxis=dict(showgrid=True, gridcolor="#333", title="Relative Return (%)", range=[y_min - y_padding, y_max + y_padding])
         )
         st.plotly_chart(fig_fx, use_container_width=True)
-        st.caption(f"Base Date: {fx_df.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+        st.caption(f"Base Date: {fx_df.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%) | Source: Yahoo Finance & Global Exchange Data")
     else:
         st.info("선택하신 기간의 데이터를 불러오는 중입니다...")
-
-
 
 
 
@@ -2382,7 +2409,7 @@ elif menu == "Bitcoin Standard":
                 fig.add_trace(go.Scatter(
                     x=spot_series.index, y=spot_series,
                     mode='lines',
-                    line=dict(width=2, color=color),
+                    line=dict(width=1.5, color=color),
                     fill='tozeroy',
                     fillcolor=f"rgba({int(color[1:3],16)}, {int(color[3:5],16)}, {int(color[5:7],16)}, 0.05)",
                     hovertemplate=f"<b>{name}</b>: %{{y:.2f}}<extra></extra>"
@@ -2408,7 +2435,7 @@ elif menu == "Bitcoin Standard":
                 
                 # D. 하단 표준 캡션 (왼쪽 정렬) ㅋ
                 actual_start_str = spot_series.index[0].strftime('%Y-%m-%d')
-                st.caption(f"Analysis Start: {actual_start_str}")
+                st.caption(f"Analysis Start: {actual_start_str} | Source: Yahoo Finance & Global Exchange Data")
                 st.markdown("<br>", unsafe_allow_html=True)
             else:
                 st.warning(f"{name} 데이터가 해당 기간에 존재하지 않습니다.")
@@ -2417,13 +2444,10 @@ elif menu == "Bitcoin Standard":
 
 
 
-
-
-
     # [E] GLOBAL CURRENCY HEATMAP: RELATIVE STRENGTH
     st.markdown("---")
     st.subheader("CURRENCY RELATIVE STRENGTH HEATMAP")
-    st.info("왼쪽(Base) 통화가 상단(Quote) 통화 대비 얼마나 강한지 나타냅니다. 짙은 초록색일수록 왼쪽 통화의 강세를 의미합니다.")
+    st.info("왼쪽(Base) 통화가 상단(Quote) 통화 대비 얼마나 강세인지 나타냅니다. 짙은 초록색일수록 왼쪽 통화의 강세를 의미합니다.")
     hm_symbols = ["USD", "CAD", "AUD", "CHF", "JPY", "CNY", "KRW"]
     
     # [V1210] 캐시 무효화를 위해 실시간성을 더 높임 ㅋ
@@ -2494,7 +2518,7 @@ elif menu == "Bitcoin Standard":
         )
         
         st.plotly_chart(fig_hm, use_container_width=True)
-        st.caption(f"Last Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Weekend Data Forced)")
+        st.caption(f"Last Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Weekend Data Forced) | Source: Yahoo Finance & Global Exchange Data")
 
 
 
