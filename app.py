@@ -2183,13 +2183,13 @@ st.data_editor(
     df_display,
     column_config={
         "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
-        "TICKER": st.column_config.TextColumn("Ticker", width="medium"), 
+        "TICKER": st.column_config.TextColumn("Ticker", width="small"), 
         "CLASS": st.column_config.TextColumn("Class", width="medium"),
         "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
-        "QTY": st.column_config.TextColumn("Quantity", width="medium"), 
-        "AVG COST": st.column_config.TextColumn("Avg Cost", width="medium"), 
+        "QTY": st.column_config.TextColumn("Quantity", width="small"), 
+        "AVG COST": st.column_config.TextColumn("Avg Cost", width="small"), 
         "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
-        "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="large", disabled=True) 
+        "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="medium", disabled=True) 
     },
     hide_index=True,
     use_container_width=True,
