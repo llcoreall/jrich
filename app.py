@@ -441,7 +441,7 @@ def process_assets(assets, rates, base_currency):
 # --- Get Settings ---
 section_labels = pm.get_setting('section_labels', {
     "strategic_allocation": "ALLOCATION",
-    "asset_growth": "ASSET GROWTH TREND",
+    "asset_growth": "NET ASSET VALUE",
     "asset_manifest": "HOLDINGS", 
     "risk_analysis": "RISK ANALYSIS",
     "global_intel": "NEWS"
@@ -1995,462 +1995,208 @@ st.markdown(f"""
 
 st.markdown("---")
 
-# 2. SWAPPED: Growth Chart First
-st.header(section_labels.get("asset_growth", "ASSET GROWTH TREND"))
-with st.container(border=True):
-    if not total_history_display.empty:
-        PURPLE_LINE = "#D500F9" 
-        PURPLE_FILL = "rgba(213, 0, 249, 0.15)" 
-        
-        fig_growth = go.Figure()
-        fig_growth.add_trace(go.Scatter(
-            x=total_history_display.index, 
-            y=total_history_display.values, 
-            fill='tozeroy',
-            mode='lines',
-            line=dict(color=PURPLE_LINE, width=2), 
-            fillcolor=PURPLE_FILL, 
-            name=f'Portfolio ({base_currency})'
-        ))
-        fig_growth.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(t=30, b=10, l=10, r=10),
-            yaxis=dict(gridcolor='#222'),
-            xaxis=dict(gridcolor='#222'),
-            font=dict(color='#888'),
-            height=350, # V42: Fixed height for mobile fitting
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig_growth, use_container_width=True)
-    else:
-        if not real_assets:
-             st.info("NO ASSETS TRACKED.")
-        else:
-             st.info("DATASTREAM OFFLINE.")
-
-st.markdown("---")
-
-
-
-
-
-
-
-
-# 3. SWAPPED: Allocation (Pie Charts) Second
+# --------------------------------------------------------------------------------
+# 1. [ALLOCATION] 자산 비중 분석 (Pie Charts)
+# --------------------------------------------------------------------------------
 st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
-# TEXT COLOR: WHITE (High Luminance)
+# TEXT COLOR & PALETTES
 PIE_TEXT_COLOR = "#FFFFFF"
-
-# COLOR PALETTES
 PALETTE_CLASS = ['#311B92', '#4527A0', '#512DA8', '#5E35B1', '#673AB7']
 PALETTE_SECTOR = ['#7B1FA2', '#8E24AA', '#9C27B0', '#AB47BC', '#BA68C8']
 PALETTE_HOLDINGS = ['#6200EA', '#651FFF', '#7C4DFF', '#B388FF', '#304FFE']
+COLOR_CASH = "#9E9D24"
 
 if not raw_assets and pm.data['cash']['USD'] == 0:
     st.warning("SYSTEM EMPTY. DEPLOY ASSETS TO INITIALIZE.")
 else:
     df_assets = pd.DataFrame(sorted_assets)
-    
-    # Resized Columns to balance Holdings Chart (Feedback V25)
-    # Holdings was too big at 1.4, user wants it reduced slightly and others increased.
-    # V42: On mobile these will stack via CSS, but for desktop we keep this ratio.
     chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1.2])
-    
-    # Define Distinct Cash Color (Toned Down Lime - Feedback V26)
-    COLOR_CASH = "#9E9D24" # Lime 800 (Darker/Muted)
 
-    # Pie Chart 1
     with chart_col1:
         with st.container(border=True):
             st.caption("CLASS DISTRIBUTION")
-            
-            # Custom Color Map for Class Distribution
-            # We map specific classes to the Palette, and Cash to our custom color
-            # V34: Merge ETF into Stock
             df_class = df_assets.copy()
             df_class['asset_class'] = df_class['asset_class'].replace('ETF', 'Stock')
-            
-            class_map = {
-                'Crypto': PALETTE_CLASS[0],
-                'Stock': PALETTE_CLASS[1], # Now includes ETFs
-                'Other': PALETTE_CLASS[3],
-                'Cash': COLOR_CASH 
-            }
-            
-            fig = px.pie(df_class, values='value_usd', names='asset_class', hole=0.5,
-                         color='asset_class', color_discrete_map=class_map)
-                         
-            # V41: Clean Tooltip & Dystopian Styling
-            fig.update_traces(
-                textinfo='percent+label', 
-                textposition='inside', # V42: Force inside for mobile safety
-                textfont=dict(size=12, color=PIE_TEXT_COLOR),
-                marker=dict(line=dict(color='#000000', width=2)),
-                hovertemplate="<b>%{label}</b><br>%{percent}<extra></extra>"
-            )
-            fig.update_layout(
-                margin=dict(t=20, b=20, l=10, r=10), 
-                paper_bgcolor='rgba(0,0,0,0)', 
-                showlegend=False, # V42: Hide Legend (labels inside is sufficient and cleaner)
-                hoverlabel=dict(
-                    bgcolor="rgba(0, 0, 0, 0.8)",
-                    bordercolor="rgba(0, 0, 0, 0.8)", 
-                    font=dict(color="white")
-                )
-            )
+            class_map = {'Crypto': PALETTE_CLASS[0], 'Stock': PALETTE_CLASS[1], 'Other': PALETTE_CLASS[3], 'Cash': COLOR_CASH}
+            fig = px.pie(df_class, values='value_usd', names='asset_class', hole=0.5, color='asset_class', color_discrete_map=class_map)
+            fig.update_traces(textinfo='percent+label', textposition='inside', textfont=dict(size=12, color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
+            fig.update_layout(margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
 
-    # Pie Chart 2
     with chart_col2:
         with st.container(border=True):
             st.caption("STOCK SECTOR DISTRIBUTION")
             df_stocks = df_assets[df_assets['asset_class'] == 'Stock']
             if not df_stocks.empty:
-                fig = px.pie(df_stocks, values='value_usd', names='sector', hole=0.5,
-                             color_discrete_sequence=PALETTE_SECTOR)
-                # Text Inside + Horizontal
-                # V41: Clean Tooltip & Dystopian Styling
-                fig.update_traces(
-                    textinfo='percent+label', 
-                    textposition='inside', 
-                    insidetextorientation='horizontal',
-                    textfont=dict(size=12, color=PIE_TEXT_COLOR),
-                    marker=dict(line=dict(color='#000000', width=2)),
-                    hovertemplate="<b>%{label}</b><br>%{percent}<extra></extra>"
-                )
-                fig.update_layout(
-                    margin=dict(t=20, b=20, l=10, r=10), 
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    showlegend=False,
-                    hoverlabel=dict(
-                        bgcolor="rgba(0, 0, 0, 0.8)",
-                        bordercolor="rgba(0, 0, 0, 0.8)", 
-                        font=dict(color="white")
-                    )
-                )
+                fig = px.pie(df_stocks, values='value_usd', names='sector', hole=0.5, color_discrete_sequence=PALETTE_SECTOR)
+                fig.update_traces(textinfo='percent+label', textposition='inside', insidetextorientation='horizontal', textfont=dict(size=12, color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
+                fig.update_layout(margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.markdown("<p style='text-align:center; color:#555; padding: 80px 0;'>NO STOCK DATA</p>", unsafe_allow_html=True)
 
-    # Pie Chart 3 (Expanded)
     with chart_col3:
         with st.container(border=True):
-            st.caption("TOTAL HOLDINGS") 
-            
-            # Grouping Logic for "Etc" (< 1%)
-            total_portfolio_val = df_assets['value_usd'].sum()
-            if total_portfolio_val > 0:
-                df_chart = df_assets.copy()
-                df_chart['ratio'] = df_chart['value_usd'] / total_portfolio_val
-                
-                # Separate Small vs Large
-                mask_small = df_chart['ratio'] < 0.01
-                df_small = df_chart[mask_small]
-                df_large = df_chart[~mask_small].copy()
-                
-                if not df_small.empty:
-                    etc_val = df_small['value_usd'].sum()
-                    # Create generic Etc row
-                    etc_row = pd.DataFrame([{
-                        'ticker': 'Etc.',
-                        'value_usd': etc_val,
-                        'asset_class': 'Other',
-                        'sector': 'Other'
-                    }])
-                    df_large = pd.concat([df_large, etc_row], ignore_index=True)
-                
-                df_final_pie = df_large
-            else:
-                df_final_pie = df_assets
-
-            # Assign colors dynamically
-            # V47: Strip -USD
+            st.caption("TOTAL HOLDINGS")
+            df_final_pie = df_assets.copy()
             df_final_pie['display_ticker'] = df_final_pie['ticker'].str.replace("-USD", "")
-
-            holdings_colors = {}
-            # Re-generate tickers list from the aggregared DF
-            pie_tickers = df_final_pie['ticker'].tolist()
-            display_tickers = df_final_pie['display_ticker'].tolist()
-            
-            # Helper to cycle through palette
-            def get_color(i):
-                return PALETTE_HOLDINGS[i % len(PALETTE_HOLDINGS)]
-                
-            for i, t in enumerate(pie_tickers):
-                d_t = display_tickers[i]
-                if t == 'CASH':
-                    holdings_colors[d_t] = COLOR_CASH 
-                elif t == 'Etc.':
-                    holdings_colors[d_t] = "#757575" # Grey for Etc
-                else:
-                    # Try to maintain original color consistency if possible, but simple cycle is fine
-                    holdings_colors[d_t] = get_color(i)
-            
-            fig = px.pie(df_final_pie, values='value_usd', names='display_ticker', hole=0.5,
-                         color='display_ticker', color_discrete_map=holdings_colors)
-            
-            pull = [0.1 if v == df_final_pie['value_usd'].max() else 0 for v in df_final_pie['value_usd']]
-            text_s = [18 if v == df_final_pie['value_usd'].max() else 11 for v in df_final_pie['value_usd']]
-            
-            # V41: Clean Tooltip & Dystopian Styling
-            fig.update_traces(
-                textinfo='percent+label', 
-                textposition='inside', # V42: Force inside for mobile safety
-                insidetextorientation='horizontal',
-                textfont=dict(color=PIE_TEXT_COLOR), 
-                texttemplate="%{label}<br>%{percent}",
-                pull=pull,
-                marker=dict(line=dict(color='#000000', width=2)),
-                hovertemplate="<b>%{label}</b><br>%{percent}<extra></extra>"
-            )
-            
-            fig.data[0].textfont.size = text_s
-            
-            # Margins kept generous for labels
-            fig.update_layout(
-                margin=dict(t=20, b=20, l=20, r=20), # V42: Reduced margins
-                paper_bgcolor='rgba(0,0,0,0)', 
-                showlegend=False,
-                hoverlabel=dict(
-                    bgcolor="rgba(0, 0, 0, 0.8)",
-                    bordercolor="rgba(0, 0, 0, 0.8)", 
-                    font=dict(color="white")
-                )
-            )
+            holdings_colors = {t: (COLOR_CASH if t == 'CASH' else PALETTE_HOLDINGS[i % len(PALETTE_HOLDINGS)]) for i, t in enumerate(df_final_pie['display_ticker'])}
+            fig = px.pie(df_final_pie, values='value_usd', names='display_ticker', hole=0.5, color='display_ticker', color_discrete_map=holdings_colors)
+            fig.update_traces(textinfo='percent+label', textposition='inside', insidetextorientation='horizontal', textfont=dict(color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
+            fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
-           # --------------------------------------------------------------------------------
 
-    # --------------------------------------------------------------------------------
-    # 🚀 [F] PORTFOLIO YTD RELATIVE PERFORMANCE (V420: Precise Jan 2nd Start)
-    # --------------------------------------------------------------------------------
-    st.markdown("---")
-    st.header(section_labels.get("ytd_performance", "YTD PERFORMANCE"))
+st.markdown("---")
 
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+# --------------------------------------------------------------------------------
+# 2. [GROWTH] 자산 성장 추세 (Growth Trend)
+# --------------------------------------------------------------------------------
+st.header(section_labels.get("asset_growth", "Net Asset Value"))
+with st.container(border=True):
+    if not total_history_display.empty:
+        PURPLE_LINE = "#D500F9" 
+        PURPLE_FILL = "rgba(213, 0, 249, 0.15)" 
+        fig_growth = go.Figure()
+        fig_growth.add_trace(go.Scatter(x=total_history_display.index, y=total_history_display.values, fill='tozeroy', mode='lines', line=dict(color=PURPLE_LINE, width=2), fillcolor=PURPLE_FILL, name=f'Portfolio ({base_currency})'))
+        fig_growth.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=30, b=10, l=10, r=10), yaxis=dict(gridcolor='#222'), xaxis=dict(gridcolor='#222'), font=dict(color='#888'), height=350, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig_growth, use_container_width=True)
+        st.caption(f"**Analysis Start:** {total_history_display.index[0].strftime('%Y-%m-%d')}")
+    else:
+        st.info("DATASTREAM OFFLINE.")
 
-    with st.spinner("Analyzing 2026 Asset Performance..."):
-        if 'df_assets' in locals() and not df_assets.empty:
-            try:
-                # 1. 티커 추출 및 정제
-                raw_tickers = df_assets['ticker'].dropna().unique().tolist()
-                portfolio_tickers = [str(t).strip().upper() for t in raw_tickers if t not in ['KRW', 'USD', 'CAD', 'CASH', '현금']]
-                
-                if portfolio_tickers:
-                    # 데이터 호출은 분모 가격 확보를 위해 12월 말부터 유지
-                    fetch_start = datetime(2025, 12, 28) 
-                    y_data = yf.download(portfolio_tickers, start=fetch_start, progress=False)
-                    
-                    if not y_data.empty:
-                        p_df = y_data['Close'] if 'Close' in y_data else y_data
-                        p_df = p_df.ffill().dropna(how='all')
-                        
-                        # [핵심] 차트 시작점을 2026년 1월 2일로 고정
-                        target_start = datetime(2026, 1, 2).date()
-                        # 1월 2일 이후 데이터만 필터링
-                        display_df = p_df.loc[p_df.index.date >= target_start]
-                        
-                        if not display_df.empty:
-                            # [정규화] 1월 2일 가격을 0.00% 기준으로 설정
-                            base_price = display_df.iloc[0]
-                            ytd_perf = (display_df / base_price - 1) * 100
-                            
-                            # 2. 차트 생성
-                            fig_ytd = go.Figure()
-                            
-                            # BTC 우선 정렬
-                            sorted_names = sorted(ytd_perf.columns if isinstance(ytd_perf, pd.DataFrame) else [portfolio_tickers[0]], 
-                                                key=lambda x: "BTC" not in x)
-                            
-                            for ticker in sorted_names:
-                                is_btc = "BTC" in ticker
-                                y_vals = ytd_perf[ticker] if isinstance(ytd_perf, pd.DataFrame) else ytd_perf
-                                
-                                fig_ytd.add_trace(go.Scatter(
-                                    x=ytd_perf.index, 
-                                    y=y_vals, 
-                                    name=ticker,
-                                    line=dict(width=1.5 if is_btc else 1.5, color="#F7931A" if is_btc else None),
-                                    hovertemplate=f"<b>{ticker}</b>: %{{y:.2f}}%<extra></extra>"
-                                ))
-                            
-                            fig_ytd.update_layout(
-                                hovermode="x unified", height=450,
-                                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                margin=dict(t=20, b=10, l=10, r=10),
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                                yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"),
-                                xaxis=dict(
-                                    range=[target_start, ytd_perf.index[-1]], # X축 시작점 강제 고정
-                                    gridcolor='rgba(255,255,255,0.05)'
-                                )
-                            )
-                            
-                            fig_ytd.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)")
-                            
-                            st.plotly_chart(fig_ytd, use_container_width=True)
-                            
-                            # 캡션 업데이트
-                            actual_base_date = display_df.index[0].strftime('%Y-%m-%d')
-                            st.caption(f"Base Date: {actual_base_date} (Normalized to 0.00%)")
-                            
-                            # 성과 요약
-                            last_p = ytd_perf.iloc[-1]
-                            if isinstance(last_p, pd.Series):
-                                st.info(f"YTD TOP: **{last_p.idxmax()}** ({last_p.max():+.2f}%)")
-                else:
-                    st.warning("분석할 자산이 없습니다.")
-            except Exception as e:
-                st.error(f"YTD 엔진 오류: {str(e)}")
-        else:
-            st.info("포트폴리오 데이터를 로딩 중입니다... ㅋ")
-    
-    st.markdown("---")
+st.markdown("---")
 
-# ASSET TABLE (Feedback V25-V29)
-    # --------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+# 3. [YTD PERFORMANCE] 연초 대비 성과 (Jan 2nd Baseline)
+# --------------------------------------------------------------------------------
+st.header(section_labels.get("ytd_performance", "YTD PERFORMANCE"))
 
-    # 1. 헤더만 컬럼을 사용합니다.
-    col_header, col_delete = st.columns([8, 1])
-    with col_header:
-        st.header("HOLDINGS")
-            
-    # 2. 데이터 준비 로직 (컬럼 밖으로 탈출: 들여쓰기 제거)
-    # Initialize Local Asset Buffer if not present
-    if 'asset_buffer' not in st.session_state:
-        st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
+with st.spinner("Analyzing 2026 Asset Performance..."):
+    if 'df_assets' in locals() and not df_assets.empty:
+        try:
+            raw_tickers = df_assets['ticker'].dropna().unique().tolist()
+            portfolio_tickers = [str(t).strip().upper() for t in raw_tickers if t not in ['KRW', 'USD', 'CAD', 'CASH', '현금']]
+            if portfolio_tickers:
+                fetch_start = datetime(2025, 12, 28) 
+                y_data = yf.download(portfolio_tickers, start=fetch_start, progress=False)
+                if not y_data.empty:
+                    p_df = y_data['Close'] if 'Close' in y_data else y_data
+                    p_df = p_df.ffill().dropna(how='all')
+                    target_start = datetime(2026, 1, 2).date()
+                    display_df = p_df.loc[p_df.index.date >= target_start]
+                    if not display_df.empty:
+                        base_price = display_df.iloc[0]
+                        ytd_perf = (display_df / base_price - 1) * 100
+                        fig_ytd = go.Figure()
+                        sorted_names = sorted(ytd_perf.columns if isinstance(ytd_perf, pd.DataFrame) else [portfolio_tickers[0]], key=lambda x: "BTC" not in x)
+                        for ticker in sorted_names:
+                            is_btc = "BTC" in ticker
+                            y_vals = ytd_perf[ticker] if isinstance(ytd_perf, pd.DataFrame) else ytd_perf
+                            fig_ytd.add_trace(go.Scatter(x=ytd_perf.index, y=y_vals, name=ticker, line=dict(width=3 if is_btc else 1.5, color="#F7931A" if is_btc else None), hovertemplate=f"<b>{ticker}</b>: %{{y:.2f}}%<extra></extra>"))
+                        fig_ytd.update_layout(hovermode="x unified", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=10, l=10, r=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"), xaxis=dict(range=[target_start, ytd_perf.index[-1]], gridcolor='rgba(255,255,255,0.05)'))
+                        fig_ytd.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)")
+                        st.plotly_chart(fig_ytd, use_container_width=True)
+                        st.caption(f"**Base Date:** {display_df.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+                        last_p = ytd_perf.iloc[-1]
+                        if isinstance(last_p, pd.Series):
+                            st.info(f"YTD TOP: **{last_p.idxmax()}** ({last_p.max():+.2f}%)")
+        except Exception as e:
+            st.error(f"YTD 엔진 오류: {str(e)}")
 
-    table_fx_rate = fx_rates.get(base_currency, 1.0)
-    currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
-    
-    display_data = []
-    buffer_assets = st.session_state['asset_buffer']
-    display_map = [] 
-    
-    for i, a in enumerate(buffer_assets):
-        if a['ticker'] == 'CASH': continue 
-        
-        val_in_base = float(a.get('value_usd', 0.0)) * table_fx_rate
-        price = a.get('current_price', 0.0)
-        if price == 0: price = a.get('avg_price', 0.0)
-        val_calc = price * a.get('quantity', 0.0) * table_fx_rate
-        
-        display_data.append({
-            "DELETE": False, 
-            "TICKER": str(a.get('ticker', '')),
-            "CLASS": str(a.get('asset_class', '')),
-            "SECTOR": str(a.get('sector', '')),
-            "QTY": f"{float(a.get('quantity', 0.0)):.4f}", 
-            "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", 
-            "CURRENT PRICE": f"${float(price):,.2f}", 
-            "VALUE": f"{currency_symbol}{val_calc:,.2f}" 
-        })
-        display_map.append(i)
-    
-    df_display = pd.DataFrame(display_data)
+st.markdown("---")
 
-    # 3. Save Edits 함수 (동일하게 유지)
-    def save_edits():
-        state = st.session_state["holdings_editor"]
-        edited_rows = state.get("edited_rows", {})
-        deleted_rows = state.get("deleted_rows", [])
-        added_rows = state.get("added_rows", []) 
-        
-        if not edited_rows and not deleted_rows and not added_rows:
-            return
+# --------------------------------------------------------------------------------
+# 4. [HOLDINGS] 자산 관리 테이블 (Full Width)
+# --------------------------------------------------------------------------------
+col_header, col_delete = st.columns([8, 1])
+with col_header:
+    st.header("HOLDINGS")
 
-        buffer = st.session_state['asset_buffer']
-        updates_made = False
-        
-        checkbox_deletes = [int(idx) for idx, changes in edited_rows.items() if changes.get("DELETE") is True]
-        all_indices_to_delete = set(deleted_rows + checkbox_deletes)
-        
-        if all_indices_to_delete:
-            rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
-            for buf_idx in rows_to_delete:
-                if buf_idx < len(buffer):
-                    buffer.pop(buf_idx)
-                    updates_made = True
-        
-        for idx, changes in edited_rows.items():
-            if int(idx) in all_indices_to_delete: continue 
-            if int(idx) < len(display_map):
-                buf_idx = display_map[int(idx)]
-                if buf_idx < len(buffer):
-                    asset = buffer[buf_idx]
-                    if "QTY" in changes:
-                        try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
-                        except: pass
-                        updates_made = True
-                    if "AVG COST" in changes:
-                        try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
-                        except: pass
-                        updates_made = True
-                    if "SECTOR" in changes:
-                        asset['sector'] = str(changes["SECTOR"]).strip()
-                        updates_made = True
-                    if "CLASS" in changes:
-                        asset['asset_class'] = str(changes["CLASS"]).strip()
-                        updates_made = True
-                    if "TICKER" in changes:
-                        asset['ticker'] = str(changes["TICKER"]).strip().upper()
-                        updates_made = True
-        
-        if added_rows:
-            for new_row in added_rows:
-                raw_ticker = new_row.get('TICKER', '').strip().upper()
-                final_class = new_row.get('CLASS', 'Stock')
-                final_sector = new_row.get('SECTOR', 'Unknown')
-                curr_price = 0.0
-                if raw_ticker:
-                    info = md.get_asset_info(raw_ticker)
-                    if info:
-                        final_class = info.get('asset_class', 'Stock')
-                        final_sector = info.get('sector', 'Unknown')
-                        curr_price = md.get_current_price(raw_ticker)
-                
-                try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
-                except: qty = 0.0
-                try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
-                except: avg = 0.0
-                
-                buffer.append({
-                    "ticker": raw_ticker, "quantity": qty, "avg_price": avg,
-                    "sector": final_sector, "asset_class": final_class,
-                    "value_usd": 0.0, "current_price": curr_price
-                })
+if 'asset_buffer' not in st.session_state:
+    st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
+
+table_fx_rate = fx_rates.get(base_currency, 1.0)
+currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
+display_data = []
+buffer_assets = st.session_state['asset_buffer']
+display_map = [] 
+
+for i, a in enumerate(buffer_assets):
+    if a['ticker'] == 'CASH': continue 
+    price = a.get('current_price', 0.0)
+    if price == 0: price = a.get('avg_price', 0.0)
+    val_calc = price * a.get('quantity', 0.0) * table_fx_rate
+    display_data.append({"DELETE": False, "TICKER": str(a.get('ticker', '')), "CLASS": str(a.get('asset_class', '')), "SECTOR": str(a.get('sector', '')), "QTY": f"{float(a.get('quantity', 0.0)):.4f}", "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", "CURRENT PRICE": f"${float(price):,.2f}", "VALUE": f"{currency_symbol}{val_calc:,.2f}"})
+    display_map.append(i)
+
+df_display = pd.DataFrame(display_data)
+
+def save_edits():
+    state = st.session_state["holdings_editor"]
+    edited_rows = state.get("edited_rows", {})
+    deleted_rows = state.get("deleted_rows", [])
+    added_rows = state.get("added_rows", []) 
+    if not edited_rows and not deleted_rows and not added_rows: return
+    buffer = st.session_state['asset_buffer']
+    updates_made = False
+    checkbox_deletes = [int(idx) for idx, changes in edited_rows.items() if changes.get("DELETE") is True]
+    all_indices_to_delete = set(deleted_rows + checkbox_deletes)
+    if all_indices_to_delete:
+        rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
+        for buf_idx in rows_to_delete:
+            if buf_idx < len(buffer):
+                buffer.pop(buf_idx)
                 updates_made = True
+    for idx, changes in edited_rows.items():
+        if int(idx) in all_indices_to_delete: continue 
+        buf_idx = display_map[int(idx)]
+        asset = buffer[buf_idx]
+        if "QTY" in changes: 
+            try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
+            except: pass
+            updates_made = True
+        if "AVG COST" in changes:
+            try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
+            except: pass
+            updates_made = True
+        if "SECTOR" in changes: asset['sector'] = str(changes["SECTOR"]).strip(); updates_made = True
+        if "CLASS" in changes: asset['asset_class'] = str(changes["CLASS"]).strip(); updates_made = True
+        if "TICKER" in changes: asset['ticker'] = str(changes["TICKER"]).strip().upper(); updates_made = True
+    if added_rows:
+        for new_row in added_rows:
+            raw_ticker = new_row.get('TICKER', '').strip().upper()
+            qty = 0.0; avg = 0.0
+            try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
+            except: pass
+            try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
+            except: pass
+            buffer.append({"ticker": raw_ticker, "quantity": qty, "avg_price": avg, "sector": "Unknown", "asset_class": "Stock", "value_usd": 0.0, "current_price": 0.0})
+            updates_made = True
+    if updates_made:
+        valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
+        cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
+        pm.data['assets'] = valid_assets + ([cash_asset] if cash_asset else [])
+        pm.save_data(); st.toast("✅ Portfolio Updated")
 
-        if updates_made:
-            valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
-            cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
-            final_pm_assets = valid_assets + ([cash_asset] if cash_asset else [])
-            pm.data['assets'] = final_pm_assets
-            pm.save_data()
-            st.toast("✅ Portfolio Updated")
-
-    # 4. [핵심] 테이블 출력 (가장 왼쪽 벽에 붙여서 전체 너비 확보)
-    st.data_editor(
-        df_display,
-        column_config={
-            "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
-            "TICKER": st.column_config.TextColumn("Ticker", width="small"), 
-            "CLASS": st.column_config.TextColumn("Class", width="medium"),
-            "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
-            "QTY": st.column_config.TextColumn("Quantity", width="small"), 
-            "AVG COST": st.column_config.TextColumn("Avg Cost", width="small"), 
-            "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
-            "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="medium", disabled=True) # 남는 공간 확보
-        },
-        hide_index=True,
-        use_container_width=True, # 🚀 이제 8:1 칸을 벗어났으므로 전체 너비를 씁니다!
-        key="holdings_editor",
-        on_change=save_edits,
-        num_rows="dynamic" 
-    )
+st.data_editor(
+    df_display,
+    column_config={
+        "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
+        "TICKER": st.column_config.TextColumn("Ticker", width="medium"), 
+        "CLASS": st.column_config.TextColumn("Class", width="medium"),
+        "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
+        "QTY": st.column_config.TextColumn("Quantity", width="medium"), 
+        "AVG COST": st.column_config.TextColumn("Avg Cost", width="medium"), 
+        "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
+        "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="large", disabled=True) 
+    },
+    hide_index=True,
+    use_container_width=True,
+    key="holdings_editor",
+    on_change=save_edits,
+    num_rows="dynamic" 
+)
 
 st.markdown("---")
 
