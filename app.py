@@ -485,7 +485,7 @@ with st.sidebar:
     # 1. 새로운 메뉴 리스트 정의
     menu_list = ["Portfolio", "Bitcoin Standard", "Crypto", "Macro", "Market"]
 
-    # 2. [V1270 핵심] 세션에 저장된 메뉴가 새로운 리스트에 없으면 Portfolio로 초기화 ㅋ
+    # 2. [V1270 핵심] 세션에 저장된 메뉴가 새로운 리스트에 없으면 Portfolio로 초기화 
     current_menu = st.session_state.get('sidebar_menu', "Portfolio")
     if current_menu not in menu_list:
         current_menu = "Portfolio"
@@ -495,7 +495,7 @@ with st.sidebar:
     menu = st.radio(
         "SELECT_MODULE",
         menu_list,
-        index=menu_list.index(current_menu), # 이제 에러 안 납니다 ㅋ
+        index=menu_list.index(current_menu), # 이제 에러 안 납니다 
         label_visibility="collapsed",
         key="main_menu_radio_v780"
     )
@@ -508,7 +508,7 @@ with st.sidebar:
     st.markdown("---")
 
     # [C] PORTFOLIO 전용 섹션 (Settings, Cash, Add Asset)
-    # Portfolio 모드일 때만 아래 내용들이 나타납니다. ㅋ
+    # Portfolio 모드일 때만 아래 내용들이 나타납니다. 
     if menu == "Portfolio":
         # 1. SETTINGS (통화 설정)
         st.subheader("SETTINGS")
@@ -607,7 +607,7 @@ with st.sidebar:
 # --- MAIN EXECUTION LOGIC ---
 
 if menu == "Macro":
-    # V56: Global Macro Intelligence (Full Caption System ㅋ)
+    # V56: Global Macro Intelligence (Full Caption System)
     st.title("MACRO INTELLIGENCE")
     
     # [A] TradingView Widgets (Top)
@@ -615,7 +615,7 @@ if menu == "Macro":
     st.markdown("### MARKET PULSE")
     c1, c2 = st.columns(2)
     
-    # 디폴트: 현재 시점 기준 1년 전 (정확히 설정되어 있습니다! ㅋ)
+    # 디폴트: 현재 시점 기준 1년 전 (정확히 설정되어 있습니다!)
     sync_start_date = datetime.now() - timedelta(days=365)
     sync_start_str = sync_start_date.strftime('%Y-%m-%d')
     
@@ -639,7 +639,7 @@ if menu == "Macro":
                     xaxis=dict(showgrid=False, title=None), showlegend=False)
                 st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
                 
-                # [V56] Analysis Start + Source 통합 캡션 ㅋ
+                # [V56] Analysis Start + Source 통합 캡션
                 actual_fed_start = fed_data.index[0].strftime('%Y-%m-%d')
                 st.caption(f"Analysis Start: {actual_fed_start} | Source: Federal Reserve Bank of St. Louis (FRED)")
                 
@@ -684,7 +684,7 @@ if menu == "Macro":
                 )
                 st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
                 
-                # [V56] Analysis Start + Source 통합 캡션 ㅋ
+                # [V56] Analysis Start + Source 통합 캡션
                 actual_nl_start = net_liquidity.index[0].strftime('%Y-%m-%d')
                 st.caption(f"Analysis Start: {actual_nl_start} | Source: Federal Reserve Bank of St. Louis (FRED)")
                 
@@ -696,10 +696,10 @@ if menu == "Macro":
 
 
 
-    # [B] Real Interest Rate Analysis (V82: 2-Year Default & Standard Caption ㅋ)
+    # [B] Real Interest Rate Analysis (V82: 2-Year Default & Standard Caption)
     st.subheader("REAL INTEREST RATE")
 
-    # 1. 분석 기간 선택 (디폴트: 현재 시점 기준 2년 전 ㅋ)
+    # 1. 분석 기간 선택 (디폴트: 현재 시점 기준 2년 전)
     rr_col1, rr_col2 = st.columns([1, 2])
     with rr_col1:
         rr_default_start = datetime.now() - timedelta(days=365 * 2)
@@ -709,11 +709,11 @@ if menu == "Macro":
             key="real_interest_rate_date"
         )
 
-    # 2. 데이터 로드 및 처리 (V82: 선택된 날짜 연동 ㅋ)
+    # 2. 데이터 로드 및 처리 (V82: 선택된 날짜 연동)
     @st.cache_data(ttl=3600)
     def get_real_rate_data_v82(start_date):
         try:
-            # CPI 계산을 위해 시작일보다 1년 더 전부터 가져와야 함 (YoY 계산용 ㅋ)
+            # CPI 계산을 위해 시작일보다 1년 더 전부터 가져와야 함 (YoY 계산용)
             fetch_start = start_date - timedelta(days=365 + 30)
             raw_data = web.DataReader(['DGS3MO', 'CPIAUCNS'], 'fred', fetch_start, datetime.now())
             
@@ -722,18 +722,18 @@ if menu == "Macro":
             cpi_yoy = (cpi_monthly / cpi_monthly.shift(12) - 1) * 100
             cpi_yoy.columns = ['Inflation']
             
-            # 데이터 병합 및 실질금리 계산 ㅋ
+            # 데이터 병합 및 실질금리 계산
             df = raw_data[['DGS3MO']].rename(columns={'DGS3MO': 'US3M'})
             df = df.join(cpi_yoy).ffill()
             df['Real_Rate'] = df['US3M'] - df['Inflation']
             
-            # 사용자가 선택한 날짜 이후 데이터만 반환 ㅋ
+            # 사용자가 선택한 날짜 이후 데이터만 반환
             return df[df.index >= pd.Timestamp(start_date)].dropna()
         except Exception as e:
             st.error(f"Real Rate Data Error: {e}")
             return pd.DataFrame()
 
-    with st.spinner("Calculating Real Interest Rate Dynamics... ㅋ"):
+    with st.spinner("Calculating Real Interest Rate Dynamics..."):
         real_rate_df = get_real_rate_data_v82(rr_start_date)
     
     if not real_rate_df.empty:
@@ -759,7 +759,7 @@ if menu == "Macro":
         )
         st.plotly_chart(fig, use_container_width=True)
         
-        # 3. [V82 핵심] 표준 캡션 추가 ㅋ
+        # 3. [V82 핵심] 표준 캡션 추가
         actual_start_str = real_rate_df.index[0].strftime('%Y-%m-%d')
         st.caption(f"Analysis Start: {actual_start_str} | Source: Federal Reserve Bank of St. Louis (FRED)")
     else:
@@ -769,11 +769,11 @@ if menu == "Macro":
 
 
 
-# [C] Treasury Yield Trend (V79: 2-Year Default & Date Input ㅋ)
+# [C] Treasury Yield Trend (V79: 2-Year Default & Date Input)
     st.markdown("---")
     st.subheader("U.S. TREASURY YIELD")
 
-    # 1. 분석 기간 선택 (디폴트: 현재 시점 기준 2년 전 ㅋ)
+    # 1. 분석 기간 선택 (디폴트: 현재 시점 기준 2년 전)
     yield_col1, yield_col2 = st.columns([1, 2])
     with yield_col1:
         yield_default_start = datetime.now() - timedelta(days=365 * 2)
@@ -783,13 +783,13 @@ if menu == "Macro":
             key="treasury_yield_date"
         )
 
-    # 2. 데이터 로드 로직 보강 ㅋ
+    # 2. 데이터 로드 로직 보강
     @st.cache_data(ttl=3600)
     def get_treasury_yields_v79(start_date):
         try:
             # 주요 만기 티커 (3M, 1Y, 2Y, 3Y, 5Y, 10Y, 20Y, 30Y)
             tickers = ['DGS3MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS10', 'DGS20', 'DGS30']
-            # 주말 데이터 유실 방지를 위해 7일 정도 더 일찍 가져옴 ㅋ
+            # 주말 데이터 유실 방지를 위해 7일 정도 더 일찍 가져옴
             fetch_start = start_date - timedelta(days=7)
             df = web.DataReader(tickers, 'fred', fetch_start, datetime.now())
             return df.ffill().dropna()
@@ -797,10 +797,10 @@ if menu == "Macro":
             st.error(f"Treasury Data Error: {e}")
             return pd.DataFrame()
 
-    with st.spinner("Accessing U.S. Treasury Data... ㅋ"):
-        # 선택된 날짜에 맞춰 데이터 호출 ㅋ
+    with st.spinner("Accessing U.S. Treasury Data..."):
+        # 선택된 날짜에 맞춰 데이터 호출
         yields_df_raw = get_treasury_yields_v79(yield_start_date)
-        # 선택한 날짜 이후로 정확히 필터링 ㅋ
+        # 선택한 날짜 이후로 정확히 필터링
         yields_df = yields_df_raw[yields_df_raw.index >= pd.Timestamp(yield_start_date)]
     
     if not yields_df.empty:
@@ -810,7 +810,7 @@ if menu == "Macro":
         
         cols = st.columns(5)
         
-        # 10Y-2Y Spread (장단기 금리차 감시 ㅋ)
+        # 10Y-2Y Spread (장단기 금리차 감시)
         if 'DGS10' in latest and 'DGS2' in latest:
             inv_val = latest['DGS10'] - latest['DGS2']
             inv_prev = prev['DGS10'] - prev['DGS2']
@@ -856,10 +856,10 @@ if menu == "Macro":
             hovermode='x unified'
         )
         
-        # [V81] 차트 출력 및 캡션 스타일 통일 ㅋ
+        # [V81] 차트 출력 및 캡션 스타일 통일
         st.plotly_chart(fig_y, use_container_width=True, config={'displayModeBar': False})
         
-        # CORPORATE BOND 섹션과 동일한 폰트/스타일 적용 ㅋ
+        # CORPORATE BOND 섹션과 동일한 폰트/스타일 적용
         actual_start_str = yields_df.index[0].strftime('%Y-%m-%d')
         st.caption(f"Analysis Start: {actual_start_str} | Source: Federal Reserve Bank of St. Louis (FRED)")
     else:
@@ -1230,13 +1230,13 @@ elif menu == "Market":
 
 
 
-    # [C] SECTOR PERFORMANCE ANALYZER (V120: SPY Priority & Dot Style ㅋ)
+    # [C] SECTOR PERFORMANCE ANALYZER (V120: SPY Priority & Dot Style)
     st.markdown("---")
     st.subheader("U.S. SECTOR PERFORMANCE")
     
     # 1. 섹터 ETF 및 컬러 매핑
     sector_config = {
-        "S&P 500 (SPY)": {"ticker": "SPY", "color": "#FFFFFF", "width": 3, "dash": "dot"}, # [수정] 점선 스타일 추가 ㅋ
+        "S&P 500 (SPY)": {"ticker": "SPY", "color": "#FFFFFF", "width": 3, "dash": "dot"}, # [수정] 점선 스타일 추가
         "Tech-Expanded (IGM)": {"ticker": "IGM", "color": "#1E90FF", "width": 1.5, "dash": "solid"},
         "Software (IGV)": {"ticker": "IGV", "color": "#00FFFF", "width": 1.5, "dash": "solid"},
         "Semiconductor (SOXX)": {"ticker": "SOXX", "color": "#FF00FF", "width": 1.5, "dash": "solid"},
@@ -1254,7 +1254,7 @@ elif menu == "Market":
         "Materials (IYM)": {"ticker": "IYM", "color": "#484DC4", "width": 1.5, "dash": "solid"}
     }
     
-    # 2. 입력 도구 (1년 트래킹 유지 ㅋ)
+    # 2. 입력 도구 (1년 트래킹 유지)
     sec_in_col1, sec_in_col2 = st.columns([1, 2])
     with sec_in_col1:
         sec_default_start = datetime.now() - timedelta(days=365)
@@ -1270,14 +1270,14 @@ elif menu == "Market":
     
     # 3. 데이터 로드 및 시각화
     if selected_sectors:
-        with st.spinner("Scanning Sector Rotation... ㅋ"):
+        with st.spinner("Scanning Sector Rotation..."):
             sec_target_tickers = [sector_config[l]["ticker"] for l in selected_sectors]
             sec_raw_data = yf.download(sec_target_tickers, start=sec_start_date, progress=False)['Close']
             
             if not sec_raw_data.empty:
                 sec_raw_data = sec_raw_data.ffill().dropna()
                 
-                # [V120 핵심] SPY가 가장 먼저 오도록 컬럼 순서 재배치 ㅋ
+                # [V120 핵심] SPY가 가장 먼저 오도록 컬럼 순서 재배치
                 if "SPY" in sec_raw_data.columns:
                     other_cols = [c for c in sec_raw_data.columns if c != "SPY"]
                     sec_raw_data = sec_raw_data[["SPY"] + other_cols]
@@ -1286,7 +1286,7 @@ elif menu == "Market":
                 
                 fig_sec = go.Figure()
                 
-                # 재배치된 순서대로 trace 추가 (레전드 순서 결정 ㅋ)
+                # 재배치된 순서대로 trace 추가 (레전드 순서 결정)
                 for ticker in sec_raw_data.columns:
                     label = [k for k, v in sector_config.items() if v["ticker"] == ticker][0]
                     conf = sector_config[label]
@@ -1299,7 +1299,7 @@ elif menu == "Market":
                         line=dict(
                             width=conf["width"], 
                             color=conf["color"],
-                            dash=conf.get("dash", "solid") # SPY는 dot, 나머지는 solid ㅋ
+                            dash=conf.get("dash", "solid") # SPY는 dot, 나머지는 solid
                         ),
                         hovertemplate=f"<b>{label}</b>: %{{y:.2f}}%<extra></extra>"
                     ))
@@ -1316,7 +1316,7 @@ elif menu == "Market":
                         orientation="h", 
                         yanchor="bottom", y=1.02, 
                         xanchor="right", x=1,
-                        traceorder="normal" # 추가한 순서(SPY 우선)대로 표시 ㅋ
+                        traceorder="normal" # 추가한 순서(SPY 우선)대로 표시
                     )
                 )
                 st.plotly_chart(fig_sec, use_container_width=True)
@@ -1333,7 +1333,7 @@ elif menu == "Market":
     # 1. 입력 도구 (기존 스타일 유지, 2026/01/01 디폴트)
     rot_in_col1, rot_in_col2 = st.columns([1, 2])
     with rot_in_col1:
-        # [수정 포인트] 2026년 고정 대신 현재로부터 365일 전으로 설정 ㅋ
+        # [수정 포인트] 2026년 고정 대신 현재로부터 365일 전으로 설정
         rot_default_start = datetime.now() - timedelta(days=365)
         rot_start_date = st.date_input(
             "Analysis Start Date", 
@@ -1360,11 +1360,11 @@ elif menu == "Market":
             # 차트 생성 (수익률 비교 + 비율 변화)
             fig_rot = go.Figure()
             
-            # [V119 핵심] 레전드 순서 1번: Growth/Value Ratio (화이트 강조선) ㅋ
+            # [V119 핵심] 레전드 순서 1번: Growth/Value Ratio (화이트 강조선)
             fig_rot.add_trace(go.Scatter(
                 x=ratio_norm.index, y=ratio_norm,
-                mode='lines', name="Growth/Value Ratio",
-                line=dict(width=3, color="#FFFFFF", dash='dot'), # 점선 유지 ㅋ
+                mode='lines', name="Growth/Value",
+                line=dict(width=3, color="#FFFFFF", dash='dot'), # 점선 유지
                 hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
             ))
 
@@ -1396,7 +1396,7 @@ elif menu == "Market":
                     orientation="h", 
                     yanchor="bottom", y=1.02, 
                     xanchor="right", x=1,
-                    traceorder="normal" # 코딩한 순서(Ratio -> Growth -> Value) 강제 유지 ㅋ
+                    traceorder="normal" # 코딩한 순서(Ratio -> Growth -> Value) 강제 유지
                 )
             )
             
@@ -1417,7 +1417,7 @@ elif menu == "Market":
 
     # 1. 딕셔너리 순서 및 스타일 업데이트
     com_config = {
-        "Dollar Index (DXY)": {
+        "DXY": {
             "ticker": "DX-Y.NYB", 
             "color": "#FFFFFF", 
             "width": 3, 
@@ -1442,7 +1442,7 @@ elif menu == "Market":
     # 2. 입력 도구 (기존과 동일)
     com_in_col1, com_in_col2 = st.columns([1, 2])
     with com_in_col1:
-        # [수정 포인트] 현재 시점으로부터 365일 전으로 디폴트 설정 ㅋ
+        # [수정 포인트] 현재 시점으로부터 365일 전으로 디폴트 설정
         com_default_start = datetime.now() - timedelta(days=365)
         com_start_date = st.date_input(
             "Analysis Start Date", 
@@ -1453,7 +1453,7 @@ elif menu == "Market":
         selected_coms = st.multiselect(
             "Select Commodities to Compare", 
             options=list(com_config.keys()),
-            default=["Dollar Index (DXY)", "Gold", "Silver", "Copper", "WTI Crude", "Natural Gas"],
+            default=["DXY", "Gold", "Silver", "Copper", "WTI Crude", "Natural Gas"],
             key="com_select_v121"
         )
     
@@ -1510,7 +1510,7 @@ elif menu == "Market":
     # 1. 입력 도구 (2026/01/01 디폴트)
     cgr_in_col1, cgr_in_col2 = st.columns([1, 2])
     with cgr_in_col1:
-        # [수정 포인트] 현재 시점으로부터 365일 전으로 디폴트 설정 ㅋ
+        # [수정 포인트] 현재 시점으로부터 365일 전으로 디폴트 설정
         cgr_default_start = datetime.now() - timedelta(days=365)
         cgr_start_date = st.date_input(
             "Analysis Start Date", 
@@ -1536,18 +1536,18 @@ elif menu == "Market":
             # 차트 생성
             fig_cgr = go.Figure()
             
-            # [V124 핵심] 레전드 순서 1번: Copper/Gold Ratio (화이트 강조 점선) ㅋ
+            # [V124 핵심] 레전드 순서 1번: Copper/Gold Ratio (화이트 강조 점선)
             fig_cgr.add_trace(go.Scatter(
                 x=cg_ratio_norm.index, y=cg_ratio_norm,
-                mode='lines', name="Copper/Gold Ratio",
-                line=dict(width=3, color="#FFFFFF", dash='dot'), # 화이트 점선 유지 ㅋ
+                mode='lines', name="Copper/Gold",
+                line=dict(width=3, color="#FFFFFF", dash='dot'), # 화이트 점선 유지
                 hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
             ))
             
             # 레전드 순서 2번: Copper (HG=F)
             fig_cgr.add_trace(go.Scatter(
                 x=cgr_norm.index, y=cgr_norm["HG=F"],
-                mode='lines', name="Copper (HG=F)",
+                mode='lines', name="Copper",
                 line=dict(width=1.5, color="#B87333"),
                 hovertemplate="Copper: %{y:.2f}%<extra></extra>"
             ))
@@ -1555,7 +1555,7 @@ elif menu == "Market":
             # 레전드 순서 3번: Gold (GC=F)
             fig_cgr.add_trace(go.Scatter(
                 x=cgr_norm.index, y=cgr_norm["GC=F"],
-                mode='lines', name="Gold (GC=F)",
+                mode='lines', name="Gold",
                 line=dict(width=1.5, color="#FFD700"),
                 hovertemplate="Gold: %{y:.2f}%<extra></extra>"
             ))
@@ -1572,7 +1572,7 @@ elif menu == "Market":
                     orientation="h", 
                     yanchor="bottom", y=1.02, 
                     xanchor="right", x=1,
-                    traceorder="normal" # 추가한 순서(Ratio 우선) 강제 적용 ㅋ
+                    traceorder="normal" # 추가한 순서(Ratio 우선) 강제 적용
                 )
             )
             
@@ -1895,21 +1895,31 @@ elif menu == "Crypto":
             if not c_disp.empty:
                 from plotly.subplots import make_subplots
                 fig_c = make_subplots(specs=[[{"secondary_y": True}]])
-                
-                # [레전드 순서 1] BTC Price (오렌지 실선)
+
+                # 1. 배경 채우기 전용 (레전드에 나타나지 않음) ㅋ
+                fig_c.add_trace(go.Scatter(
+                    x=c_disp.index, y=c_disp, 
+                    fill='tozeroy', 
+                    fillcolor='rgba(255, 255, 255, 0.05)',
+                    line=dict(width=0), # 선은 안 보임
+                    showlegend=False,   # 레전드 제외
+                    hoverinfo='skip'    # 호버 제외
+                ), secondary_y=False)
+
+                # 2. 레전드 및 라인 전용 (이 선이 레전드 기준이 됨) ㅋ
+                fig_c.add_trace(go.Scatter(
+                    x=c_disp.index, y=c_disp, 
+                    name="Correlation",
+                    line=dict(width=3, color="#FFFFFF", dash="dot"),
+                    mode='lines' # 채우기 없음! ㅋ
+                ), secondary_y=False)
+
+                # [레전드 순서 2] BTC Price (오렌지 실선)
                 fig_c.add_trace(go.Scatter(
                     x=cp_disp.index, y=cp_disp, 
                     name="BTC", 
                     line=dict(width=1.5, color="#F7931A")
                 ), secondary_y=True)
-
-                # [레전드 순서 2] Correlation (하얀색 점선)
-                fig_c.add_trace(go.Scatter(
-                    x=c_disp.index, y=c_disp, 
-                    name="Correlation",
-                    line=dict(width=3, color="#FFFFFF", dash="dot"), # 하얀색 점선으로 변경
-                    fill='tozeroy', fillcolor='rgba(255, 255, 255, 0.03)'
-                ), secondary_y=False)
                 
                 # 기준선 (0.0)
                 fig_c.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)", secondary_y=False)
@@ -1984,16 +1994,25 @@ elif menu == "Crypto":
                 
                 # 3. 차트 생성
                 fig_bgd = go.Figure()
+
+
+                # [레전드 순서 1] Ratio - 화이트 굵은 도트선
+                fig_bgd.add_trace(go.Scatter(
+                    x=bg_ratio_norm.index, y=bg_ratio_norm,
+                    mode='lines', name="BTC/Gold",
+                    line=dict(width=3, color="#FFFFFF", dash='dot'),
+                    hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
+                ))
                 
-                # [레전드 순서 1] Dollar Index - 초록색
+                # [레전드 순서 2] Dollar Index - 초록색
                 fig_bgd.add_trace(go.Scatter(
                     x=bgd_norm.index, y=bgd_norm[dxy_col],
-                    mode='lines', name="US Dollar Index",
+                    mode='lines', name="DXY",
                     line=dict(width=2, color="#00FF41"), # 사령부 시그니처 그린
                     hovertemplate="DXY: %{y:.2f}%<extra></extra>"
                 ))
                 
-                # [레전드 순서 2] Bitcoin - 오렌지색 굵은 선
+                # [레전드 순서 3] Bitcoin - 오렌지색 굵은 선
                 fig_bgd.add_trace(go.Scatter(
                     x=bgd_norm.index, y=bgd_norm[btc_col],
                     mode='lines', name="Bitcoin",
@@ -2001,20 +2020,12 @@ elif menu == "Crypto":
                     hovertemplate="Bitcoin: %{y:.2f}%<extra></extra>"
                 ))
                 
-                # [레전드 순서 3] Gold - 금색 실선
+                # [레전드 순서 4] Gold - 금색 실선
                 fig_bgd.add_trace(go.Scatter(
                     x=bgd_norm.index, y=bgd_norm[gold_col],
                     mode='lines', name="Gold",
                     line=dict(width=1.5, color="#FFD700"),
                     hovertemplate="Gold: %{y:.2f}%<extra></extra>"
-                ))
-                
-                # [레전드 순서 4] Ratio - 화이트 굵은 도트선
-                fig_bgd.add_trace(go.Scatter(
-                    x=bg_ratio_norm.index, y=bg_ratio_norm,
-                    mode='lines', name="BTC/Gold Ratio",
-                    line=dict(width=3, color="#FFFFFF", dash='dot'),
-                    hovertemplate="Ratio Change: %{y:.2f}%<extra></extra>"
                 ))
                 
                 fig_bgd.update_layout(
@@ -2056,7 +2067,7 @@ elif menu == "Crypto":
 
 
 
-# --- MARKET MODULE (V103: USD/DXY Priority & Source ㅋ) ---
+# --- MARKET MODULE (V103: USD/DXY Priority & Source) ---
 elif menu == "Bitcoin Standard":
     st.title("BITCOIN STANDARD a.k.a FOREX")
 
@@ -2068,11 +2079,11 @@ elif menu == "Bitcoin Standard":
     # 1. 분석 기간 선택
     btc_col1, btc_col2 = st.columns([1, 2])
     with btc_col1:
-        # 성진님의 요청에 따라 2023-01-01 유지 ㅋ
+        # 성진님의 요청에 따라 2023-01-01 유지
         btc_default_start = datetime(2023, 1, 1)
         btc_analysis_start = st.date_input("Analysis Start Date", value=btc_default_start, key="btc_std_global_date")
 
-    # 2. 데이터 로드 로직 (DXY를 USD라는 이름으로 추가 ㅋ)
+    # 2. 데이터 로드 로직 (DXY를 USD라는 이름으로 추가)
     fiat_tickers = {
         "USD": "DX-Y.NYB", "CAD": "CAD=X", "AUD": "AUD=X", 
         "CHF": "CHF=X", "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
@@ -2085,7 +2096,7 @@ elif menu == "Bitcoin Standard":
             btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
-            # [중요] unit_config 순서대로 돌아서 레전드 순서 보장 ㅋ
+            # [중요] unit_config 순서대로 돌아서 레전드 순서 보장
             for name, ticker in tickers_dict.items():
                 fiat_raw = yf.download(ticker, start=start_date_str, interval='1d', progress=False)['Close']
                 if not fiat_raw.empty:
@@ -2093,11 +2104,11 @@ elif menu == "Bitcoin Standard":
                     b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
                     
                     if name == "USD":
-                        # DXY 기반 USD 가치 역산 (지수 100 기준 보정 ㅋ)
-                        # DXY가 높을수록 달러가 강하므로, 1달러로 살 수 있는 BTC는 상대적으로 많아짐 ㅋ
+                        # DXY 기반 USD 가치 역산 (지수 100 기준 보정)
+                        # DXY가 높을수록 달러가 강하므로, 1달러로 살 수 있는 BTC는 상대적으로 많아짐
                         btc_per_fiat = (f_series / 100) / b_series
                     else:
-                        # 일반 환율 기반 구매력 역산 ㅋ
+                        # 일반 환율 기반 구매력 역산
                         btc_per_fiat = 1 / (f_series * b_series)
                     
                     btc_per_fiat.name = name
@@ -2115,13 +2126,13 @@ elif menu == "Bitcoin Standard":
         
         # 3. 차트 생성
         fig_btc_melt = go.Figure()
-        # USD: 화이트, 나머지 컬러 유지 ㅋ
+        # USD: 화이트, 나머지 컬러 유지
         colors = {
             "USD": "#FFFFFF", "CAD": "#FF5252", "AUD": "#FFD740", 
             "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"
         }
         
-        # 설정한 순서(USD 우선)대로 Trace 추가 ㅋ
+        # 설정한 순서(USD 우선)대로 Trace 추가
         for name in fiat_tickers.keys():
             if name in btc_rel_perf.columns:
                 is_usd = (name == "USD")
@@ -2131,7 +2142,7 @@ elif menu == "Bitcoin Standard":
                     line=dict(
                         width=3 if is_usd else 1.5, 
                         color=colors.get(name),
-                        dash='dot' if is_usd else 'solid' # USD는 점선 강조 ㅋ
+                        dash='dot' if is_usd else 'solid' # USD는 점선 강조
                     ),
                     connectgaps=True,
                     hovertemplate=f"<b>{name}</b>: %{{y:.2f}}% (Purchasing Power)<extra></extra>"
@@ -2144,15 +2155,20 @@ elif menu == "Bitcoin Standard":
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             height=550, margin=dict(l=10, r=10, t=10, b=10), hovermode="x unified",
             legend=dict(
-                orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, 
-                bgcolor="rgba(0,0,0,0.3)", traceorder="normal"
+                orientation="h",       # 가로 배치 유지
+                yanchor="top",      # 하단 기준 (y=1.02와 세트)
+                y=1,                # 차트 상단 살짝 위로 올림
+                xanchor="right",       # 오른쪽 기준점 설정 ㅋ
+                x=1,                   # 오른쪽 끝으로 밀착 ㅋ
+                bgcolor="rgba(0,0,0,0)", # 배경 투명하게
+                traceorder="normal"
             ),
             yaxis=dict(showgrid=True, gridcolor="#333", title="Purchasing Power Change (%)", range=[y_min - y_padding, y_max + y_padding])
         )
 
         st.plotly_chart(fig_btc_melt, use_container_width=True)
         
-        # [V103] 캡션 업데이트: Source 추가 완료! ㅋ
+        # [V103] 캡션 업데이트: Source 추가 완료!
         actual_start_str = btc_rel_perf.index[0].strftime('%Y-%m-%d')
         st.caption(f"Analysis Start: {actual_start_str} | Source: Yahoo Finance & Global Exchange Data")
         
@@ -2169,7 +2185,7 @@ elif menu == "Bitcoin Standard":
     st.subheader("SATOSHIS PER UNIT FIAT (SCARCITY)")
     st.info("각 통화 '1단위'로 구매 가능한 사토시(Sats)의 개수를 추적합니다. (USD는 달러 인덱스 기준)")
 
-    # 1. 설정: 이름을 USD로 변경하고 단위는 1로 설정 ㅋ
+    # 1. 설정: 이름을 USD로 변경하고 단위는 1로 설정
     unit_config = {
         "USD": 1,      "CAD": 1,      "AUD": 1,      
         "KRW": 1000,   "JPY": 100,    "CNY": 10,     "CHF": 1       
@@ -2192,7 +2208,7 @@ elif menu == "Bitcoin Standard":
             btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
-            # 티커 생성 (이름은 USD지만 데이터는 DXY 티커를 가져옴 ㅋ)
+            # 티커 생성 (이름은 USD지만 데이터는 DXY 티커를 가져옴)
             tickers = {k: (f"{k}=X" if k != "USD" else "DX-Y.NYB") for k in unit_config.keys()}
             fiat_raw = yf.download(list(tickers.values()), start=start_date_str, interval='1d', progress=False)['Close']
             
@@ -2202,9 +2218,9 @@ elif menu == "Bitcoin Standard":
                 f_series = fiat_raw[ticker] if isinstance(fiat_raw, pd.DataFrame) else fiat_raw
                 b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
                 
-                # [핵심] 사토시 환산 로직 분기 ㅋ
+                # [핵심] 사토시 환산 로직 분기
                 if fiat == "USD":
-                    # DXY 지수는 100을 기준으로 달러 가치를 환산 (바닥에 붙지 않게 보정 ㅋ)
+                    # DXY 지수는 100을 기준으로 달러 가치를 환산 (바닥에 붙지 않게 보정)
                     sats_per_unit = (f_series / 100) / b_series * 100_000_000
                 else:
                     # 일반 환율 (CAD, KRW 등)은 기존 공식 유지
@@ -2221,7 +2237,7 @@ elif menu == "Bitcoin Standard":
     if not sats_df.empty:
         # 3. 차트 생성
         fig_sats = go.Figure()
-        # USD(DXY기반): 화이트 설정 ㅋ
+        # USD(DXY기반): 화이트 설정
         colors = {
             "USD": "#FFFFFF", "CAD": "#FF5252", "AUD": "#FFD740", 
             "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"
@@ -2230,7 +2246,7 @@ elif menu == "Bitcoin Standard":
         for fiat in unit_config.keys():
             if fiat in sats_df.columns:
                 is_usd_base = (fiat == "USD")
-                # 레전드 이름 형식: "1 USD", "1000 KRW" ㅋ
+                # 레전드 이름 형식: "1 USD", "1000 KRW"
                 legend_name = f"{unit_config[fiat]} {fiat}"
                 
                 fig_sats.add_trace(go.Scatter(
@@ -2250,14 +2266,14 @@ elif menu == "Bitcoin Standard":
             height=500, margin=dict(l=10, r=10, t=20, b=40), hovermode="x unified",
             yaxis_title="Satoshi Amount (Sats)",
             legend=dict(
-                orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, 
+                orientation="h", yanchor="top", y=1, xanchor="right", x=1, 
                 bgcolor="rgba(0,0,0,0.3)", traceorder="normal"
             )
         )
-        # [V1246: 차트 출력 및 캡션 추가 ㅋ]
+        # [V1246: 차트 출력 및 캡션 추가]
         st.plotly_chart(fig_sats, use_container_width=True)
         
-        # 성진님이 찾으시던 바로 그 Base Date 캡션! ㅋ
+        # 성진님이 찾으시던 바로 그 Base Date 캡션!
         actual_sats_base = sats_df.index[0].strftime('%Y-%m-%d')
         st.caption(f"Analysis Start: {actual_sats_base} | Source: Yahoo Finance & Global Exchange Data")
         
@@ -2270,7 +2286,7 @@ elif menu == "Bitcoin Standard":
 
 
 
-    # [C] GLOBAL CURRENCY PERFORMANCE (V983: UI Unification ㅋ)
+    # [C] GLOBAL CURRENCY PERFORMANCE (V983: UI Unification)
     st.markdown("---")
     st.subheader("GLOBAL CURRENCY PERFORMANCE")
 
@@ -2280,10 +2296,10 @@ elif menu == "Bitcoin Standard":
         "CHF": "CHF=X", "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
     }
 
-    # 2. 분석 기간 선택 (다른 차트들과 스타일 통일! ㅋ)
+    # 2. 분석 기간 선택 (다른 차트들과 스타일 통일!)
     fx_perf_col1, fx_perf_col2 = st.columns([1, 2])
     with fx_perf_col1:
-        # 디폴트는 성진님이 요청하신 대로 현재 기준 1년 전 ㅋ
+        # 디폴트는 성진님이 요청하신 대로 현재 기준 1년 전
         fx_perf_default_start = datetime.now() - timedelta(days=365)
         fx_perf_start_date = st.date_input(
             "Analysis Start Date", 
@@ -2294,7 +2310,7 @@ elif menu == "Bitcoin Standard":
     @st.cache_data(ttl=3600)
     def get_fx_data_v983(tickers_dict, start_date_str):
         df_list = []
-        # 주말/휴일을 대비해 입력받은 날짜보다 7일 더 일찍 가져와서 보정 ㅋ
+        # 주말/휴일을 대비해 입력받은 날짜보다 7일 더 일찍 가져와서 보정
         fetch_start = datetime.strptime(start_date_str, '%Y-%m-%d') - timedelta(days=7)
         
         for name, ticker in tickers_dict.items():
@@ -2314,17 +2330,17 @@ elif menu == "Bitcoin Standard":
         
         if df_list:
             combined = pd.concat(df_list, axis=1).ffill().dropna()
-            # 사용자가 선택한 날짜 이후의 데이터만 정확히 필터링 ㅋ
+            # 사용자가 선택한 날짜 이후의 데이터만 정확히 필터링
             return combined[combined.index >= pd.Timestamp(start_date_str)]
         return pd.DataFrame()
 
     with st.spinner("Analyzing Global Currency Trends..."):
-        # 선택된 날짜를 문자열로 변환하여 전달 ㅋ
+        # 선택된 날짜를 문자열로 변환하여 전달
         fx_df = get_fx_data_v983(fx_tickers, fx_perf_start_date.strftime('%Y-%m-%d'))
 
     # 3. 차트 렌더링
     if not fx_df.empty and len(fx_df) > 1:
-        # 선택한 시작점의 첫 데이터를 0%로 기준 잡기 ㅋ
+        # 선택한 시작점의 첫 데이터를 0%로 기준 잡기
         first_valid_row = fx_df.iloc[0]
         fx_ytd_rel = (fx_df / first_valid_row - 1) * 100
         
@@ -2347,7 +2363,7 @@ elif menu == "Bitcoin Standard":
         fig_fx.update_layout(
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             height=550, margin=dict(l=10, r=10, t=20, b=40), hovermode="x unified",
-            legend=dict(orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.3)"),
+            legend=dict(orientation="h", yanchor="top", y=1, xanchor="right", x=1, bgcolor="rgba(0,0,0,0.3)"),
             yaxis=dict(showgrid=True, gridcolor="#333", title="Relative Return (%)", range=[y_min - y_padding, y_max + y_padding])
         )
         st.plotly_chart(fig_fx, use_container_width=True)
@@ -2380,10 +2396,10 @@ elif menu == "Bitcoin Standard":
         # A. 차트 제목 출력
         st.write(f"#### **{name}**")
 
-        # B. Analysis Start Date 선택 (왼쪽 정렬을 위해 컬럼 활용 ㅋ)
+        # B. Analysis Start Date 선택 (왼쪽 정렬을 위해 컬럼 활용)
         col_date, col_empty = st.columns([1, 2])
         with col_date:
-            # 기본값: 1년 전 ㅋ
+            # 기본값: 1년 전
             default_start = datetime.now() - timedelta(days=365)
             individual_start = st.date_input(
                 "Analysis Start Date", 
@@ -2393,7 +2409,7 @@ elif menu == "Bitcoin Standard":
 
         # C. 데이터 로드 및 차트 생성
         try:
-            # progress=False로 깔끔하게 로드 ㅋ
+            # progress=False로 깔끔하게 로드
             raw = yf.download(ticker, start=individual_start, interval='1d', progress=False)
             if not raw.empty:
                 if isinstance(raw.columns, pd.MultiIndex):
@@ -2401,7 +2417,7 @@ elif menu == "Bitcoin Standard":
                 else:
                     spot_series = raw['Close'].copy()
                 
-                # Y축 범위 최적화 ㅋ
+                # Y축 범위 최적화
                 y_min, y_max = spot_series.min(), spot_series.max()
                 padding = (y_max - y_min) * 0.15
 
@@ -2433,7 +2449,7 @@ elif menu == "Bitcoin Standard":
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # D. 하단 표준 캡션 (왼쪽 정렬) ㅋ
+                # D. 하단 표준 캡션 (왼쪽 정렬)
                 actual_start_str = spot_series.index[0].strftime('%Y-%m-%d')
                 st.caption(f"Analysis Start: {actual_start_str} | Source: Yahoo Finance & Global Exchange Data")
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -2450,7 +2466,7 @@ elif menu == "Bitcoin Standard":
     st.info("왼쪽(Base) 통화가 상단(Quote) 통화 대비 얼마나 강세인지 나타냅니다. 짙은 초록색일수록 왼쪽 통화의 강세를 의미합니다.")
     hm_symbols = ["USD", "CAD", "AUD", "CHF", "JPY", "CNY", "KRW"]
     
-    # [V1210] 캐시 무효화를 위해 실시간성을 더 높임 ㅋ
+    # [V1210] 캐시 무효화를 위해 실시간성을 더 높임
     @st.cache_data(ttl=300) 
     def get_heatmap_matrix_v1210(symbols):
         matrix = pd.DataFrame(index=symbols, columns=symbols)
@@ -2464,15 +2480,15 @@ elif menu == "Bitcoin Standard":
                 if base == "USD": ticker = f"{quote}=X"
                 
                 try:
-                    # [V1210 핵심] 데이터를 1달치(1mo) 넉넉히 가져와서 결측치를 완전히 제거 ㅋ
+                    # [V1210 핵심] 데이터를 1달치(1mo) 넉넉히 가져와서 결측치를 완전히 제거 
                     raw_data = yf.download(ticker, period="1mo", interval="1d", progress=False)['Close']
-                    # MultiIndex인 경우 처리 ㅋ
+                    # MultiIndex인 경우 처리 
                     data = raw_data[ticker] if isinstance(raw_data, pd.DataFrame) else raw_data
                     series = data.dropna()
                     
                     if len(series) >= 2:
                         # [V1210 로직] 맨 마지막 날(val_now)과 
-                        # 그 전날 중 값이 '다른' 날(val_prev)을 기어이 찾아냄 ㅋ
+                        # 그 전날 중 값이 '다른' 날(val_prev)을 기어이 찾아냄 
                         val_now = series.iloc[-1]
                         val_prev = val_now
                         
@@ -2482,7 +2498,7 @@ elif menu == "Bitcoin Standard":
                                 break
                         
                         change = ((val_now / val_prev) - 1) * 100
-                        # USD 기준은 부호 반전 ㅋ
+                        # USD 기준은 부호 반전 
                         matrix.loc[base, quote] = change if base != "USD" else -change
                     else:
                         matrix.loc[base, quote] = 0.0
@@ -2496,7 +2512,7 @@ elif menu == "Bitcoin Standard":
     if not hm_df.empty:
         import plotly.graph_objects as go
 
-        # [V1210] 데이터가 작아도 색이 잘 보이게 범위를 0.2%로 더 조임 ㅋ
+        # [V1210] 데이터가 작아도 색이 잘 보이게 범위를 0.2%로 더 조임 
         fig_hm = go.Figure(data=go.Heatmap(
             z=hm_df.values,
             x=hm_df.columns,
