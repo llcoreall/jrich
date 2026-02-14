@@ -2083,43 +2083,47 @@ elif menu == "Bitcoin Standard":
         btc_default_start = datetime(2023, 1, 1)
         btc_analysis_start = st.date_input("Analysis Start Date", value=btc_default_start, key="btc_std_global_date")
 
-    # 2. 데이터 로드 로직 (DXY를 USD라는 이름으로 추가)
+    # 2. 데이터 로드 로직 (구조 통일 ㅋ)
     fiat_tickers = {
         "USD": "DX-Y.NYB", "CAD": "CAD=X", "AUD": "AUD=X", 
         "CHF": "CHF=X", "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
     }
 
     @st.cache_data(ttl=3600)
-    def get_btc_standard_final_v103(tickers_dict, start_date_str):
+    def get_btc_standard_v105(tickers_dict, start_date_str):
         combined_list = []
         try:
-            btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
+            # [핵심] 시작일 공백 방지를 위해 3일 전부터 미리 로드 ㅋ
+            fetch_start = (datetime.strptime(start_date_str, '%Y-%m-%d') - timedelta(days=3)).strftime('%Y-%m-%d')
+            
+            # BTC-USD 가격 로드
+            btc_raw = yf.download("BTC-USD", start=fetch_start, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
-            # [중요] unit_config 순서대로 돌아서 레전드 순서 보장
             for name, ticker in tickers_dict.items():
-                fiat_raw = yf.download(ticker, start=start_date_str, interval='1d', progress=False)['Close']
+                fiat_raw = yf.download(ticker, start=fetch_start, interval='1d', progress=False)['Close']
                 if not fiat_raw.empty:
-                    f_series = fiat_raw[ticker] if isinstance(fiat_raw, pd.DataFrame) else fiat_raw
-                    b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
+                    f_series = fiat_raw[ticker].ffill()
+                    b_series = btc_raw["BTC-USD"].ffill()
                     
                     if name == "USD":
-                        # DXY 기반 USD 가치 역산 (지수 100 기준 보정)
-                        # DXY가 높을수록 달러가 강하므로, 1달러로 살 수 있는 BTC는 상대적으로 많아짐
+                        # DXY 기반 구매력 역산
                         btc_per_fiat = (f_series / 100) / b_series
                     else:
-                        # 일반 환율 기반 구매력 역산
                         btc_per_fiat = 1 / (f_series * b_series)
                     
                     btc_per_fiat.name = name
                     combined_list.append(btc_per_fiat)
             
             if combined_list:
-                return pd.concat(combined_list, axis=1).ffill().dropna()
+                # 합친 후 성진님이 선택한 날짜부터 슬라이싱해서 출력 ㅋ
+                full_df = pd.concat(combined_list, axis=1).ffill()
+                return full_df[full_df.index >= start_date_str]
         except: pass
         return pd.DataFrame()
 
-    btc_df = get_btc_standard_final_v103(fiat_tickers, btc_analysis_start.strftime('%Y-%m-%d'))
+    # 함수 호출 (이름 주의 ㅋ)
+    btc_df = get_btc_standard_v105(fiat_tickers, btc_analysis_start.strftime('%Y-%m-%d'))
 
     if not btc_df.empty and len(btc_df) > 1:
         btc_rel_perf = (btc_df / btc_df.iloc[0] - 1) * 100
@@ -2158,8 +2162,8 @@ elif menu == "Bitcoin Standard":
                 orientation="h",       # 가로 배치 유지
                 yanchor="top",      # 하단 기준 (y=1.02와 세트)
                 y=1,                # 차트 상단 살짝 위로 올림
-                xanchor="right",       # 오른쪽 기준점 설정 ㅋ
-                x=1,                   # 오른쪽 끝으로 밀착 ㅋ
+                xanchor="right",       # 오른쪽 기준점 설정 
+                x=1,                   # 오른쪽 끝으로 밀착 
                 bgcolor="rgba(0,0,0,0)", # 배경 투명하게
                 traceorder="normal"
             ),
