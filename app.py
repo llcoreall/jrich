@@ -1896,7 +1896,7 @@ elif menu == "Crypto":
                 from plotly.subplots import make_subplots
                 fig_c = make_subplots(specs=[[{"secondary_y": True}]])
 
-                # 1. 배경 채우기 전용 (레전드에 나타나지 않음) ㅋ
+                # 1. 배경 채우기 전용 (레전드에 나타나지 않음) 
                 fig_c.add_trace(go.Scatter(
                     x=c_disp.index, y=c_disp, 
                     fill='tozeroy', 
@@ -1906,12 +1906,12 @@ elif menu == "Crypto":
                     hoverinfo='skip'    # 호버 제외
                 ), secondary_y=False)
 
-                # 2. 레전드 및 라인 전용 (이 선이 레전드 기준이 됨) ㅋ
+                # 2. 레전드 및 라인 전용 (이 선이 레전드 기준이 됨) 
                 fig_c.add_trace(go.Scatter(
                     x=c_disp.index, y=c_disp, 
                     name="Correlation",
                     line=dict(width=3, color="#FFFFFF", dash="dot"),
-                    mode='lines' # 채우기 없음! ㅋ
+                    mode='lines' # 채우기 없음! 
                 ), secondary_y=False)
 
                 # [레전드 순서 2] BTC Price (오렌지 실선)
@@ -2083,7 +2083,7 @@ elif menu == "Bitcoin Standard":
         btc_default_start = datetime(2023, 1, 1)
         btc_analysis_start = st.date_input("Analysis Start Date", value=btc_default_start, key="btc_std_global_date")
 
-    # 2. 데이터 로드 로직 (구조 통일 ㅋ)
+    # 2. 데이터 로드 로직 (구조 통일)
     fiat_tickers = {
         "USD": "DX-Y.NYB", "CAD": "CAD=X", "AUD": "AUD=X", 
         "CHF": "CHF=X", "JPY": "JPY=X", "CNY": "CNY=X", "KRW": "KRW=X"
@@ -2093,7 +2093,7 @@ elif menu == "Bitcoin Standard":
     def get_btc_standard_v105(tickers_dict, start_date_str):
         combined_list = []
         try:
-            # [핵심] 시작일 공백 방지를 위해 3일 전부터 미리 로드 ㅋ
+            # [핵심] 시작일 공백 방지를 위해 3일 전부터 미리 로드
             fetch_start = (datetime.strptime(start_date_str, '%Y-%m-%d') - timedelta(days=3)).strftime('%Y-%m-%d')
             
             # BTC-USD 가격 로드
@@ -2116,13 +2116,13 @@ elif menu == "Bitcoin Standard":
                     combined_list.append(btc_per_fiat)
             
             if combined_list:
-                # 합친 후 성진님이 선택한 날짜부터 슬라이싱해서 출력 ㅋ
+                # 합친 후 성진님이 선택한 날짜부터 슬라이싱해서 출력
                 full_df = pd.concat(combined_list, axis=1).ffill()
                 return full_df[full_df.index >= start_date_str]
         except: pass
         return pd.DataFrame()
 
-    # 함수 호출 (이름 주의 ㅋ)
+    # 함수 호출 (이름 주의)
     btc_df = get_btc_standard_v105(fiat_tickers, btc_analysis_start.strftime('%Y-%m-%d'))
 
     if not btc_df.empty and len(btc_df) > 1:
@@ -2189,7 +2189,7 @@ elif menu == "Bitcoin Standard":
     st.subheader("SATOSHIS PER UNIT FIAT (SCARCITY)")
     st.info("각 통화 '1단위'로 구매 가능한 사토시(Sats)의 개수를 추적합니다. (USD는 달러 인덱스 기준)")
 
-    # 1. 설정: 레전드 순서 강제 지정 (BTC Standard 섹션과 동일하게 ㅋ)
+    # 1. 설정: 레전드 순서 강제 지정 (BTC Standard 섹션과 동일하게 )
     unit_config = {
         "USD": 1,      "CAD": 1,      "AUD": 1,      
         "CHF": 1,      "JPY": 100,    "CNY": 10,     "KRW": 1000       
