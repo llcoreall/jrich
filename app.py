@@ -2009,7 +2009,7 @@ elif menu == "Bitcoin Standard":
         st.error(f"**Fiat Devaluation:** {actual_start_str} 이후 **{worst_fiat}**의 구매력은 비트코인 대비 **{worst_val:.2f}%** 하락했습니다.")
 
     else:
-        st.info("비트코인 표준 전송망을 연결 중입니다... ㅋ")
+        st.info("비트코인 표준 전송망을 연결 중입니다...")
 
 
 
@@ -2096,7 +2096,7 @@ elif menu == "Bitcoin Standard":
         current_krw_sats = sats_df['KRW'].iloc[-1]
         st.warning(f"**Scarcity Alert:** 현재 1,000원으로 살 수 있는 비트코인은 단 **{current_krw_sats:,.0f} 사토시**뿐입니다. 화폐 발행이 계속될수록 이 숫자는 기하급수적으로 줄어듭니다.")
     else:
-        st.info("데이터를 분석하여 사토시 단위로 변환 중입니다... ㅋ")
+        st.info("데이터를 분석하여 사토시 단위로 변환 중입니다...")
 
 
 
@@ -2223,7 +2223,7 @@ elif menu == "Bitcoin Standard":
         st.caption(f"Base Date: {base_date_str} (Normalized to 0.00%)")
         
     else:
-        st.info("FX 데이터를 불러오는 중입니다... 잠시만 기다려 주세요! ㅋ")
+        st.info("FX 데이터를 불러오는 중입니다... 잠시만 기다려 주세요!")
 
 
 
@@ -2310,9 +2310,9 @@ elif menu == "Bitcoin Standard":
                 st.caption(f"Analysis Start: {actual_start_str}")
                 st.markdown("<br>", unsafe_allow_html=True)
             else:
-                st.warning(f"{name} 데이터가 해당 기간에 존재하지 않습니다. ㅋ")
+                st.warning(f"{name} 데이터가 해당 기간에 존재하지 않습니다.")
         except Exception as e:
-            st.error(f"{name} 데이터를 가져오는 중 오류가 발생했습니다. ㅋ")
+            st.error(f"{name} 데이터를 가져오는 중 오류가 발생했습니다.")
 
 
 
@@ -2365,7 +2365,7 @@ elif menu == "Bitcoin Standard":
                     matrix.loc[base, quote] = 0.0
         return matrix.astype(float)
 
-    with st.spinner("주말의 침묵을 깨고 데이터를 강제 소환 중... ㅋ"):
+    with st.spinner("주말의 침묵을 깨고 데이터를 강제 소환 중..."):
         hm_df = get_heatmap_matrix_v1210(hm_symbols)
 
     if not hm_df.empty:
