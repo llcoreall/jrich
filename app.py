@@ -2180,15 +2180,15 @@ elif menu == "Bitcoin Standard":
 
 
 
-    # [B] SATOSHIS PER UNIT FIAT: THE SCARCITY TRACKER (V1245)
+# [B] SATOSHIS PER UNIT FIAT: THE SCARCITY TRACKER (Final Optimization)
     st.markdown("---")
     st.subheader("SATOSHIS PER UNIT FIAT (SCARCITY)")
     st.info("각 통화 '1단위'로 구매 가능한 사토시(Sats)의 개수를 추적합니다. (USD는 달러 인덱스 기준)")
 
-    # 1. 설정: 이름을 USD로 변경하고 단위는 1로 설정
+    # 1. 설정: 레전드 순서 강제 지정 (BTC Standard 섹션과 동일하게 ㅋ)
     unit_config = {
         "USD": 1,      "CAD": 1,      "AUD": 1,      
-        "KRW": 1000,   "JPY": 100,    "CNY": 10,     "CHF": 1       
+        "CHF": 1,      "JPY": 100,    "CNY": 10,     "KRW": 1000       
     }
 
     # 2. 분석 시작일 설정
@@ -2202,51 +2202,58 @@ elif menu == "Bitcoin Standard":
         )
 
     @st.cache_data(ttl=3600)
-    def get_sats_per_fiat_data_v1245(start_date_str):
+    def get_sats_per_fiat_final(start_date_str):
         try:
+            # [보정] 시작일 공백 방지를 위해 3일 전부터 로드
+            fetch_start = (datetime.strptime(start_date_str, '%Y-%m-%d') - timedelta(days=3)).strftime('%Y-%m-%d')
+            
             # BTC 가격 로드
-            btc_raw = yf.download("BTC-USD", start=start_date_str, interval='1d', progress=False)['Close']
+            btc_raw = yf.download("BTC-USD", start=fetch_start, interval='1d', progress=False)['Close']
             if btc_raw.empty: return pd.DataFrame()
             
-            # 티커 생성 (이름은 USD지만 데이터는 DXY 티커를 가져옴)
+            # 티커 생성
             tickers = {k: (f"{k}=X" if k != "USD" else "DX-Y.NYB") for k in unit_config.keys()}
-            fiat_raw = yf.download(list(tickers.values()), start=start_date_str, interval='1d', progress=False)['Close']
+            fiat_raw = yf.download(list(tickers.values()), start=fetch_start, interval='1d', progress=False)['Close']
             
             combined_list = []
+            # unit_config 순서대로 돌아서 레전드 순서 보장
             for fiat, unit in unit_config.items():
                 ticker = tickers[fiat]
-                f_series = fiat_raw[ticker] if isinstance(fiat_raw, pd.DataFrame) else fiat_raw
-                b_series = btc_raw["BTC-USD"] if isinstance(btc_raw, pd.DataFrame) else btc_raw
+                if ticker in fiat_raw.columns:
+                    f_series = fiat_raw[ticker].ffill()
+                    b_series = btc_raw["BTC-USD"].ffill()
+                    
+                    if fiat == "USD":
+                        # DXY 기반 보정 수식 (바닥 탈출용)
+                        sats_per_unit = (f_series / 100) / b_series * 100_000_000
+                    else:
+                        sats_per_unit = (unit / f_series) / b_series * 100_000_000
+                    
+                    sats_per_unit.name = fiat
+                    combined_list.append(sats_per_unit)
                 
-                # [핵심] 사토시 환산 로직 분기
-                if fiat == "USD":
-                    # DXY 지수는 100을 기준으로 달러 가치를 환산 (바닥에 붙지 않게 보정)
-                    sats_per_unit = (f_series / 100) / b_series * 100_000_000
-                else:
-                    # 일반 환율 (CAD, KRW 등)은 기존 공식 유지
-                    sats_per_unit = (unit / f_series) / b_series * 100_000_000
-                
-                sats_per_unit.name = fiat
-                combined_list.append(sats_per_unit)
-                
-            return pd.concat(combined_list, axis=1).ffill().dropna()
+            if combined_list:
+                # 합친 후 성진님이 선택한 날짜부터 슬라이싱
+                full_df = pd.concat(combined_list, axis=1).ffill()
+                return full_df[full_df.index >= start_date_str]
         except: return pd.DataFrame()
+        return pd.DataFrame()
 
-    sats_df = get_sats_per_fiat_data_v1245(sats_start_date.strftime('%Y-%m-%d'))
+    # 함수 이름 똑같이 맞춰서 호출!
+    sats_df = get_sats_per_fiat_final(sats_start_date.strftime('%Y-%m-%d'))
 
     if not sats_df.empty:
         # 3. 차트 생성
         fig_sats = go.Figure()
-        # USD(DXY기반): 화이트 설정
         colors = {
             "USD": "#FFFFFF", "CAD": "#FF5252", "AUD": "#FFD740", 
             "CHF": "#64FFDA", "JPY": "#448AFF", "CNY": "#E040FB", "KRW": "#00E676"
         }
         
+        # 레전드 순서대로 트레이스 추가
         for fiat in unit_config.keys():
             if fiat in sats_df.columns:
-                is_usd_base = (fiat == "USD")
-                # 레전드 이름 형식: "1 USD", "1000 KRW"
+                is_usd = (fiat == "USD")
                 legend_name = f"{unit_config[fiat]} {fiat}"
                 
                 fig_sats.add_trace(go.Scatter(
@@ -2254,30 +2261,28 @@ elif menu == "Bitcoin Standard":
                     mode='lines', 
                     name=legend_name,
                     line=dict(
-                        width=3 if is_usd_base else 1.5, 
+                        width=3 if is_usd else 1.5, 
                         color=colors.get(fiat),
-                        dash='dot' if is_usd_base else 'solid'
+                        dash='dot' if is_usd =="USD" else 'solid'
                     ),
                     hovertemplate=f"<b>{legend_name}</b>: %{{y:,.0f}} Sats<extra></extra>"
                 ))
 
         fig_sats.update_layout(
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=500, margin=dict(l=10, r=10, t=20, b=40), hovermode="x unified",
+            height=500, margin=dict(l=10, r=10, t=10, b=10), hovermode="x unified",
             yaxis_title="Satoshi Amount (Sats)",
             legend=dict(
-                orientation="h", yanchor="top", y=1, xanchor="right", x=1, 
-                bgcolor="rgba(0,0,0,0.3)", traceorder="normal"
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, 
+                bgcolor="rgba(0,0,0,0)", traceorder="normal"
             )
         )
-        # [V1246: 차트 출력 및 캡션 추가]
         st.plotly_chart(fig_sats, use_container_width=True)
         
-        # 성진님이 찾으시던 바로 그 Base Date 캡션!
+        # 캡션 및 경고문
         actual_sats_base = sats_df.index[0].strftime('%Y-%m-%d')
         st.caption(f"Analysis Start: {actual_sats_base} | Source: Yahoo Finance & Global Exchange Data")
         
-        # 4. 실전 경고 리포트
         current_krw_sats = sats_df['KRW'].iloc[-1]
         st.warning(f"**Scarcity Alert:** 현재 1,000원으로 살 수 있는 비트코인은 단 **{current_krw_sats:,.0f} 사토시**뿐입니다.")
     else:
