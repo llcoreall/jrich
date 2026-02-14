@@ -17,6 +17,11 @@ from plotly.subplots import make_subplots # 👈 이 줄이 꼭 있어야 fig_du
 # --- Setup ---
 st.set_page_config(page_title="Portfolio Manager", layout="wide", page_icon=None, initial_sidebar_state="collapsed")
 
+
+
+
+
+
 # --- Authentication Logic ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
@@ -457,125 +462,124 @@ manual_risk = pm.get_setting('risk_inputs', {
 
 # --- Sidebar ---
 with st.sidebar:
-    # 기존 st.caption(f"ID: {st.session_state['user_id'].upper()}")
-    st.markdown(
-    f"""
-    <div style="text-align: center; color: #888; font-size: 14px; margin-bottom: 20px;">
-        ID: {st.session_state['user_id'].upper()}
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
-    if st.button("LOGOUT", use_container_width=True):
+    # [A] 최상단 정보 (ID & Logout)
+    st.markdown(f'<div style="text-align: center; color: #888; font-size: 14px; margin-bottom: 20px;">ID: {st.session_state["user_id"].upper()}</div>', unsafe_allow_html=True)
+    if st.button("LOGOUT", use_container_width=True, key="unique_logout_v780"):
         logout()
-
     st.markdown("---")
 
-    # 1. Module이라는 글자를 Settings와 같은 레벨의 제목으로 만듭니다.
-    # 만약 Settings가 st.title이면 # 을, st.subheader면 ### 을 사용하세요.
-    st.markdown("### MODULE") # 또는 "### MODULE"
-    
-    # 2. radio 위젯의 첫 번째 인자(label)를 비워둡니다 (label_visibility="collapsed")
+    # [B] MODULE 메뉴 출력 (최상단 배치)
+    st.markdown("### MODULE")
+    # 세션 상태 초기화
+    if 'sidebar_menu' not in st.session_state:
+        st.session_state['sidebar_menu'] = "Portfolio"
+
     menu = st.radio(
-        "MODULE_LABEL", # 내부 식별용 이름
+        "SELECT_MODULE",
         ["Portfolio", "Macro", "Market", "Crypto", "FX"],
-        label_visibility="collapsed" # 실제 화면에서는 글자를 숨깁니다.
+        index=["Portfolio", "Macro", "Market", "Crypto", "FX"].index(st.session_state['sidebar_menu']),
+        label_visibility="collapsed",
+        key="main_menu_radio_v780"
     )
+    
+    # 메뉴 변경 시 세션 갱신 및 리런
+    if menu != st.session_state['sidebar_menu']:
+        st.session_state['sidebar_menu'] = menu
+        st.rerun()
 
     st.markdown("---")
 
-    # --- PORTFOLIO SETTINGS (Only show if Portfolio) ---
+    # [C] PORTFOLIO 전용 섹션 (Settings, Cash, Add Asset)
+    # Portfolio 모드일 때만 아래 내용들이 나타납니다. ㅋ
     if menu == "Portfolio":
+        # 1. SETTINGS (통화 설정)
         st.subheader("SETTINGS")
-        
-        base_currency = st.radio("CURRENCY", ["USD", "CAD", "KRW"], horizontal=True)
-        pm.update_setting("base_currency", base_currency)
-    
-
-
-    st.markdown("---")
-    
-    st.subheader("CASH")
-    cash_data = pm.data.get('cash', {'USD':0.0, 'CAD':0.0, 'KRW':0.0})
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        usd_in = st.number_input("USD", value=cash_data.get('USD', 0.0), key="cash_usd")
-        if usd_in != cash_data.get('USD', 0.0):
-            pm.update_cash('USD', usd_in)
+        curr_val = pm.get_setting("base_currency", "USD")
+        new_curr = st.radio("CURRENCY", ["USD", "CAD", "KRW"], horizontal=True, key="sidebar_curr_v780")
+        if new_curr != curr_val:
+            pm.update_setting("base_currency", new_curr)
             st.rerun()
-    with c2:
-        cad_in = st.number_input("CAD", value=cash_data.get('CAD', 0.0), key="cash_cad")
-        if cad_in != cash_data.get('CAD', 0.0):
-            pm.update_cash('CAD', cad_in)
-            st.rerun()
-    krw_in = st.number_input("KRW", value=cash_data.get('KRW', 0.0), key="cash_krw", step=1000.0)
-    if krw_in != cash_data.get('KRW', 0.0):
-        pm.update_cash('KRW', krw_in)
-        st.rerun()
         
-    if krw_in != cash_data.get('KRW', 0.0):
-        pm.update_cash('KRW', krw_in)
-        st.rerun()
-        
-    st.markdown("---")
+        st.markdown("---")
 
-    # V52: Add Asset Moved to Sidebar (Under Cash)
-    with st.expander("➕ Add New Asset", expanded=False):
-        with st.form("add_asset_form_sidebar"):
-            new_ticker = st.text_input("Ticker Symbol").upper()
+        # 2. CASH (현금 관리)
+        st.subheader("CASH")
+        cash_data = pm.data.get('cash', {'USD':0.0, 'CAD':0.0, 'KRW':0.0})
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            usd_in = st.number_input("USD", value=cash_data.get('USD', 0.0), key="cash_usd")
+            if usd_in != cash_data.get('USD', 0.0):
+                pm.update_cash('USD', usd_in)
+                st.rerun()
+        with c2:
+            cad_in = st.number_input("CAD", value=cash_data.get('CAD', 0.0), key="cash_cad")
+            if cad_in != cash_data.get('CAD', 0.0):
+                pm.update_cash('CAD', cad_in)
+                st.rerun()
+        krw_in = st.number_input("KRW", value=cash_data.get('KRW', 0.0), key="cash_krw", step=1000.0)
+        if krw_in != cash_data.get('KRW', 0.0):
+            pm.update_cash('KRW', krw_in)
+            st.rerun()
             
-            c_qty, c_cost = st.columns(2)
-            with c_qty:
-                new_qty = st.number_input("Qty", min_value=0.0, format="%.4f")
-            with c_cost:
-                new_cost = st.number_input("Avg Cost", min_value=0.0, format="%.2f")
-            
-            new_class = st.selectbox("Class", ["Stock", "Crypto", "ETF", "Bond", "Cash", "Other"])
-            new_sector = st.text_input("Sector", value="Technology")
-            
-            submitted_add = st.form_submit_button("ADD", use_container_width=True)
-            
-            if submitted_add and new_ticker:
-                # Auto-fetch price if 0
-                curr_price = 0.0
-                if new_ticker:
+        st.markdown("---")
+
+        # 3. ADD NEW ASSET (자산 추가)
+        with st.expander("➕ Add New Asset", expanded=False):
+            with st.form("add_asset_form_sidebar"):
+                new_ticker = st.text_input("Ticker Symbol").upper()
+                
+                c_qty, c_cost = st.columns(2)
+                with c_qty:
+                    new_qty = st.number_input("Qty", min_value=0.0, format="%.4f")
+                with c_cost:
+                    new_cost = st.number_input("Avg Cost", min_value=0.0, format="%.2f")
+                
+                new_class = st.selectbox("Class", ["Stock", "Crypto", "ETF", "Bond", "Cash", "Other"])
+                new_sector = st.text_input("Sector", value="Technology")
+                
+                submitted_add = st.form_submit_button("ADD", use_container_width=True)
+                
+                if submitted_add and new_ticker:
+                    curr_price = 0.0
                     info = md.get_asset_info(new_ticker)
                     if info:
                         curr_price = md.get_current_price(new_ticker)
-                        if new_sector == "Technology": # Only override default if meaningful
+                        if new_sector == "Technology":
                             new_sector = info.get('sector', new_sector)
-                
-                new_asset_entry = {
-                    "ticker": new_ticker,
-                    "quantity": new_qty,
-                    "avg_price": new_cost,
-                    "sector": new_sector,
-                    "asset_class": new_class,
-                    "value_usd": 0.0, 
-                    "current_price": curr_price
-                }
-                
-                # Direct save via PM (bypass buffer for sidebar add, or append to buffer if needed for immediate view)
-                # Ideally, we update PM and rerun, which refreshes everything.
-                pm.add_or_update_asset(new_asset_entry)
-                pm.save_data()
-                
-                st.toast(f"Asset Added: {new_ticker}")
-                time.sleep(0.5)
-                st.rerun()
+                    
+                    new_asset_entry = {
+                        "ticker": new_ticker, "quantity": new_qty, "avg_price": new_cost,
+                        "sector": new_sector, "asset_class": new_class,
+                        "value_usd": 0.0, "current_price": curr_price
+                    }
+                    pm.add_or_update_asset(new_asset_entry)
+                    pm.save_data()
+                    st.toast(f"Asset Added: {new_ticker}")
+                    time.sleep(0.5)
+                    st.rerun()
 
-    st.markdown("---")
-    with st.expander("Override Protocols"):
-        new_labels = section_labels.copy()
-        for key, val in section_labels.items():
-            new_labels[key] = st.text_input(f"{key}", value=val)
-        if st.button("UPDATE PROTOCOLS"):
-            pm.update_setting('section_labels', new_labels)
-            st.rerun()
+        st.markdown("---")
+    # [D] Sidebar Footer (모든 메뉴에서 공통으로 보이도록 if문 밖으로 탈출!)
+    # st.sidebar를 직접 명시하여 확실하게 위치를 고정합니다.
+    st.sidebar.markdown(
+        """
+        <div style="
+            text-align: center; 
+            color: #777; 
+            font-size: 13px; 
+            margin-top: 10px;
+            margin-bottom: 30px;
+            width: 100%;
+            font-family: 'Courier New', Courier, monospace;
+        ">
+            RABBIT TERMINAL v2026.02
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
 
-    # Define base_currency for local scope if not in Portfolio menu (fallback)
-    # But since we only run Portfolio code if menu is Portfolio, it's fine.
+
 
 # --- MAIN EXECUTION LOGIC ---
 
@@ -2001,6 +2005,7 @@ with m_spacer:
     st.write("")
 
 st.markdown("---")
+
 
 # --------------------------------------------------------------------------------
 # 1. [ALLOCATION] 자산 비중 분석 (Pie Charts)
