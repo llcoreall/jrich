@@ -1907,12 +1907,11 @@ fx_rates, is_stale_flag = md.get_fx_rates()
 raw_assets = pm.get_assets()
 total_val_display, sorted_assets = process_assets(raw_assets, fx_rates, base_currency)
 
-# --- History Calculation (Lifted for Header Metrics) ---
+# --- History Calculation (기존 로직 유지) ---
 real_assets = [a for a in sorted_assets if a['ticker'] != 'CASH']
 total_history_display = pd.Series()
 
 if real_assets:
-    # prices = st.session_state.ae.fetch_historical_data(real_assets)
     prices = get_cached_historical_data(st.session_state.ae, real_assets)
     if not prices.empty:
         prices = prices.ffill().dropna()
@@ -1923,75 +1922,83 @@ if real_assets:
         
         total_cash_usd = next((a['value_usd'] for a in sorted_assets if a['ticker'] == 'CASH'), 0.0)
         total_history_usd = portfolio_value_series + total_cash_usd
-        
-        # V35: Apply Currency Conversion
         growth_fx = fx_rates.get(base_currency, 1.0)
         total_history_display = total_history_usd * growth_fx
 
 # --- Metrics Calculation ---
 ytd_return = 0.0
-cagr = 0.0
-
 if not total_history_display.empty:
-    # YTD
     current_year = datetime.now().year
     start_of_year = datetime(current_year, 1, 1)
-    
-    # Filter for dates >= Jan 1. 
-    # Logic: Find first available date in this year. 
-    # If history starts after Jan 1, use first date.
-    
-    # Ensure index is datetime
     if not isinstance(total_history_display.index, pd.DatetimeIndex):
         total_history_display.index = pd.to_datetime(total_history_display.index)
-        
     this_year_data = total_history_display[total_history_display.index >= pd.Timestamp(start_of_year)]
-    
     current_val = total_history_display.iloc[-1]
-    
     if not this_year_data.empty:
         start_val_ytd = this_year_data.iloc[0]
         if start_val_ytd > 0:
             ytd_return = (current_val - start_val_ytd) / start_val_ytd
-    else:
-        # Fallback if no data in current year (e.g. Jan 1 morning?) or history ends before Jan 1
-        pass 
 
-    # CAGR (REMOVED V37)
-    
-# Header Layout
-# Header Layout (Unified HTML for V39)
-val_html = f"{total_val_display:,.2f}"
+# --------------------------------------------------------------------------------
+# 🎯 [V700] No Arrow Minimalist & Spacing Adjustment
+# --------------------------------------------------------------------------------
 
-pill_html = ""
-if ytd_return != 0:
-    pill_class = "pill-positive" if ytd_return > 0 else "pill-negative"
-    arrow = "↑" if ytd_return > 0 else "↓"
-    # No indentation to avoid code block
-    pill_html = f'<div class="metric-pill {pill_class}"><span>{arrow} {ytd_return:.2%}</span></div>'
+# m_col3(토글)과 m_spacer(여백) 사이의 비율을 조정하여 토글을 오른쪽으로 살짝 이동시킵니다.
+m_col1, m_col2, m_col3, m_spacer = st.columns([1.6, 1.3, 1.2, 3.2])
+
+with m_col3:
+    st.write("") # 수직 정렬 최적화
+    st.write("")
+    hide_sensitive = st.toggle("Hide Data", value=False, key="privacy_filter_v700")
+
+# 공통 스타일 정의
+BASE_NEON = 'font-size: 38px; font-weight: 700; line-height: 1.1; letter-spacing: -1px;'
+PURPLE_GLOW = f'{BASE_NEON} color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4);'
+
+# YTD 수익률 색상 분기 (화살표 제거)
+if ytd_return > 0:
+    ytd_color = "#00E676"
+    ytd_shadow = "rgba(0, 230, 118, 0.4)"
+elif ytd_return < 0:
+    ytd_color = "#FF5252"
+    ytd_shadow = "rgba(255, 82, 82, 0.4)"
 else:
-    pill_html = '<span style="color: #555;">—</span>'
+    ytd_color = "#B0B0B0"
+    ytd_shadow = "rgba(176, 176, 176, 0.2)"
 
-st.markdown(f"""
-<div style="display: flex; gap: 30px; align-items: flex-start;">
-    <div>
+YTD_NEON = f'{BASE_NEON} color: {ytd_color}; text-shadow: 0 0 10px {ytd_shadow};'
+MASK_NEON = f'font-size: 38px; font-weight: 700; color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4); letter-spacing: 3px;'
+
+# 마스킹 결정
+if not hide_sensitive:
+    val_html = f'<span style="{PURPLE_GLOW}">{total_val_display:,.2f}</span>'
+    ytd_html = f'<span style="{YTD_NEON}">{ytd_return:.2%}</span>' # 🚀 화살표 삭제됨
+else:
+    val_html = f'<span style="{MASK_NEON}">••••••••</span>'
+    ytd_html = f'<span style="{MASK_NEON}">••••</span>'
+
+# 1. NET ASSET VALUE
+with m_col1:
+    st.markdown(f"""
         <div style="margin-bottom: 2px;">
-            <span style="font-size: 14px; color: #B0B0B0; font-weight: 500;">NET ASSET VALUE ({base_currency})</span>
+            <span style="font-size: 13px; color: #B0B0B0; font-weight: 500;">NET ASSET VALUE ({base_currency})</span>
         </div>
-        <span style="font-size: 42px; font-weight: 700; color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4); line-height: 1;">
-            {val_html}
-        </span>
-    </div>
-    <div>
+        {val_html}
+    """, unsafe_allow_html=True)
+
+# 2. YTD Return (No Arrow)
+with m_col2:
+    st.markdown(f"""
         <div style="margin-bottom: 2px;">
-            <span style="font-size: 14px; color: #B0B0B0; font-weight: 500; padding-left: 10px;">YTD Return</span>
+            <span style="font-size: 13px; color: #B0B0B0; font-weight: 500;">YTD Return</span>
         </div>
         <div style="display: flex; align-items: center; height: 42px;">
-            {pill_html}
+            {ytd_html}
         </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+with m_spacer:
+    st.write("")
 
 st.markdown("---")
 
