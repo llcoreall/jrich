@@ -2571,6 +2571,7 @@ if 'base_currency' not in locals():
 
 # --- Main Dashboard (V756: Syntax Fix & Core Summary) ---
 st.title("PORTFOLIO MANAGER")
+st.markdown("---")
 
 # [데이터 엔진 - 기존 로직 유지]
 fx_rates, _ = md.get_fx_rates()
@@ -2700,27 +2701,41 @@ with m_right:
     )
     g_col1.plotly_chart(fig_mdd, use_container_width=True, config={'displayModeBar': False})
 
+    # --- 샤프 비율 수치 색상 로직 (안정권 1.0 기준) ---
+    if sharpe_auto >= 2.5:
+        sharpe_text_color = "#C5A059"  # SUPERIOR (Muted Gold)
+    elif sharpe_auto >= 1.5:
+        sharpe_text_color = "#7CB342"  # VERY GOOD (Muted Lime)
+    elif sharpe_auto >= 1.0:
+        sharpe_text_color = "#4CAF50"  # STABLE (Investment Green)
+    else:
+        sharpe_text_color = "#D81B60"  # CAUTION (Muted Red)
+
     # 2. SHARPE RATIO GAUGE
     fig_sharpe = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = sharpe_auto,
         domain = gauge_domain,
-        number = {'font': {'size': 40, 'color': "#D500F9"}, 'valueformat': ".2f"},
+        # [수정] 숫자 색상만 등급에 따라 변하도록 설정
+        number = {'font': {'size': 40, 'color': sharpe_text_color}, 'valueformat': ".2f"},
         gauge = {
             'axis': {'range': [-1, 4], 'tickwidth': 1, 'tickcolor': "#FFF", 'tickfont': {'size': 10}},
             'bar': {'color': "#FFF"},
             'bgcolor': "rgba(0,0,0,0)",
             'borderwidth': 1, 'bordercolor': "#444",
+            # [유지] 오리지널 보라색/자주색 테마 색상 그대로 유지
             'steps': [
-                {'range': [-1, 0], 'color': "#311B92"}, {'range': [0, 1], 'color': "#512DA8"},
-                {'range': [1, 2], 'color': "#7B1FA2"}, {'range': [2, 4], 'color': "#D500F9"}
+                {'range': [-1, 0], 'color': "#311B92"}, 
+                {'range': [0, 1], 'color': "#512DA8"},
+                {'range': [1, 2], 'color': "#7B1FA2"}, 
+                {'range': [2, 4], 'color': "#D500F9"}
             ],
             'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': sharpe_auto}
         }
     ))
     fig_sharpe.add_annotation(
         text="SHARPE RATIO",
-        x=0.5, y=0.35,  # ✅ 게이지 중앙에 텍스트 배치 (y 값을 조정하세요)
+        x=0.5, y=0.35,
         xref="paper", yref="paper",
         showarrow=False,
         font=dict(size=20, color="#888"),
@@ -2734,11 +2749,11 @@ with m_right:
     )
     g_col2.plotly_chart(fig_sharpe, use_container_width=True, config={'displayModeBar': False})
 
-st.markdown("---")
 
 # --------------------------------------------------------------------------------
 # 1. [ALLOCATION] 자산 비중 분석 (Pie Charts) - 사이즈 및 비율 최적화
 # --------------------------------------------------------------------------------
+st.markdown("---")
 st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
 # --- 디자인 및 색상 설정 ---
@@ -2855,11 +2870,12 @@ else:
             # 통합 차트 생성 함수 호출
             create_unified_pie(df_holdings_grouped, 'display_ticker', 'value_usd', holdings_colors, "chart_holdings_tsla_fixed")
 
-st.markdown("---")
+
 
 # --------------------------------------------------------------------------------
 # 2. [GROWTH] 자산 성장 추세 (Growth Trend)
 # --------------------------------------------------------------------------------
+st.markdown("---")
 st.header(section_labels.get("asset_growth", "Net Asset Value"))
 with st.container(border=True):
     if not total_history_display.empty:
@@ -2873,11 +2889,12 @@ with st.container(border=True):
     else:
         st.info("DATASTREAM OFFLINE.")
 
-st.markdown("---")
+
 
 # --------------------------------------------------------------------------------
 # 3. [YTD PERFORMANCE] 연초 대비 성과 (Jan 2nd Baseline)
 # --------------------------------------------------------------------------------
+st.markdown("---")
 st.header(section_labels.get("ytd_performance", "YTD PERFORMANCE"))
 
 with st.spinner("Analyzing 2026 Asset Performance..."):
@@ -2912,11 +2929,12 @@ with st.spinner("Analyzing 2026 Asset Performance..."):
         except Exception as e:
             st.error(f"YTD 엔진 오류: {str(e)}")
 
-st.markdown("---")
+
 
 # --------------------------------------------------------------------------------
 # 4. [HOLDINGS] 자산 관리 테이블 (Full Width)
 # --------------------------------------------------------------------------------
+st.markdown("---")
 col_header, col_delete = st.columns([8, 1])
 with col_header:
     st.header("HOLDINGS")
@@ -3006,9 +3024,10 @@ st.data_editor(
     num_rows="dynamic" 
 )
 
-st.markdown("---")
+
 
 # 4. Intelligence
+st.markdown("---")
 st.header("INTELLIGENCE GRID")
 
 r1, r2 = st.columns([1, 1])
