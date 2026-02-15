@@ -2667,72 +2667,109 @@ with m_right:
     gauge_height = 300
     gauge_domain = {'x': [0, 1], 'y': [0, 0.8]} 
 
+
+
+
+
+    # --- MDD 수치 및 게이지 색상 로직 (0에서 오른쪽으로 -60까지, 투명도 적용) ---  
+    mdd_pct = mdd_value * 100
+    
+    # 투명도 조절을 위한 rgba 정의 (알파값 0.5 적용)
+    COLOR_MDD_YELLOW_ALPHA = "rgba(253, 216, 53, 0.5)" # #FDD835 기반
+    COLOR_MDD_ORANGE_ALPHA = "rgba(255, 145, 0, 0.5)" # #FF9100 기반
+    COLOR_MDD_RED_ALPHA    = "rgba(255, 23, 68, 0.5)"  # #FF1744 기반
+
+    # 수치에 따른 텍스트 색상 결정 (가독성을 위해 숫자는 선명하게 유지)
+    if mdd_pct >= -20:
+        mdd_status_color = "#FDD835"  # 노랑
+    elif mdd_pct >= -40:
+        mdd_status_color = "#FF9100"  # 주황
+    else:
+        mdd_status_color = "#FF1744"  # 빨강
+
     # 1. MDD GAUGE
     fig_mdd = go.Figure(go.Indicator(
         mode = "gauge+number",
-        value = mdd_value * 100,
+        value = mdd_pct,
         domain = gauge_domain, 
-        number = {'font': {'size': 40, 'color': mdd_display_color}, 'suffix': "%", 'valueformat': ".1f"},
+        number = {'font': {'size': 40, 'color': mdd_status_color}, 'suffix': "%", 'valueformat': ".1f"},
         gauge = {
-            'axis': {'range': [-60, 0], 'tickwidth': 1, 'tickcolor': "#FFF", 'tickfont': {'size': 10}},
-            'bar': {'color': "#FFF"},
-            'bgcolor': "rgba(0,0,0,0)",
-            'borderwidth': 1, 'bordercolor': "#444",
+            # 왼쪽(0)에서 오른쪽(-60)으로 향하는 구조 유지
+            'axis': {
+                'range': [0, -60], 
+                'tickwidth': 1, 
+                'tickcolor': "#FFF", 
+                'tickfont': {'size': 10},
+                'tickvals': [0, -10, -20, -30, -40, -50, -60]
+            },
+            'bar': {'color': "rgba(255, 255, 255, 0.8)"}, # 포인터 바도 살짝 투명하게
+            'bgcolor': "rgba(255, 255, 255, 0.05)",      # 은은한 배경 트랙
+            'borderwidth': 1, 'bordercolor': "rgba(255, 255, 255, 0.2)",
             'steps': [
-                {'range': [-60, -40], 'color': "#311B92"}, {'range': [-40, -20], 'color': "#512DA8"},
-                {'range': [-20, -10], 'color': "#7B1FA2"}, {'range': [-10, 0], 'color': "#D500F9"}
+                {'range': [0, -20],   'color': COLOR_MDD_YELLOW_ALPHA}, 
+                {'range': [-20, -40], 'color': COLOR_MDD_ORANGE_ALPHA}, 
+                {'range': [-40, -60], 'color': COLOR_MDD_RED_ALPHA}
             ],
-            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': mdd_value * 100}
+            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': mdd_pct}
         }
     ))
+    
     fig_mdd.add_annotation(
         text="MDD",
-        x=0.5, y=0.35,  # ✅ 게이지 중앙에 텍스트 배치 (y 값을 조정하세요)
+        x=0.5, y=0.35,
         xref="paper", yref="paper",
         showarrow=False,
         font=dict(size=20, color="#888"),
         xanchor='center'
     )
+    
     fig_mdd.update_layout(
         height=gauge_height, 
         margin=dict(t=50, b=10, l=30, r=30),
         paper_bgcolor='rgba(0,0,0,0)', 
         font={'color': "#FFF"}
     )
+    
     g_col1.plotly_chart(fig_mdd, use_container_width=True, config={'displayModeBar': False})
 
-    # --- 샤프 비율 수치 색상 로직 (안정권 1.0 기준) ---
-    if sharpe_auto >= 2.5:
-        sharpe_text_color = "#C5A059"  # SUPERIOR (Muted Gold)
-    elif sharpe_auto >= 1.5:
-        sharpe_text_color = "#7CB342"  # VERY GOOD (Muted Lime)
+
+
+    # --- 샤프 비율 심플 3단계 로직 (RGBA 투명도 적용) --- 
+    # 투명도 조절을 위해 색상을 rgba 값으로 변환 (알파값 0.5 적용)
+    COLOR_RED_ALPHA = "rgba(255, 23, 68, 0.5)"     # Caution (레드)
+    COLOR_NORMAL_ALPHA = "rgba(76, 175, 81, 0.5)"  # Normal (그린)
+    COLOR_PRIME_ALPHA = "rgba(102, 187, 106, 0.5)" # Prime (연한 그린)
+
+    if sharpe_auto >= 2.0:
+        sharpe_status_color = "#66BB6A" # 텍스트는 가독성을 위해 불투명 유지
+        gauge_color = COLOR_PRIME_ALPHA
     elif sharpe_auto >= 1.0:
-        sharpe_text_color = "#4CAF50"  # STABLE (Investment Green)
+        sharpe_status_color = "#4caf51"
+        gauge_color = COLOR_NORMAL_ALPHA
     else:
-        sharpe_text_color = "#D81B60"  # CAUTION (Muted Red)
+        sharpe_status_color = "#FF1744"
+        gauge_color = COLOR_RED_ALPHA
 
     # 2. SHARPE RATIO GAUGE
     fig_sharpe = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = sharpe_auto,
         domain = gauge_domain,
-        # [수정] 숫자 색상만 등급에 따라 변하도록 설정
-        number = {'font': {'size': 40, 'color': sharpe_text_color}, 'valueformat': ".2f"},
+        number = {'font': {'size': 40, 'color': sharpe_status_color}, 'valueformat': ".2f"},
         gauge = {
-            'axis': {'range': [-1, 4], 'tickwidth': 1, 'tickcolor': "#FFF", 'tickfont': {'size': 10}},
-            'bar': {'color': "#FFF"},
-            'bgcolor': "rgba(0,0,0,0)",
-            'borderwidth': 1, 'bordercolor': "#444",
-            # [유지] 오리지널 보라색/자주색 테마 색상 그대로 유지
+            'axis': {'range': [-1, 4], 'tickvals': [-1, 0, 1, 2, 4], 'tickcolor': "#FFF"},
+            'bar': {'color': "rgba(255, 255, 255, 0.8)"}, # 포인터도 살짝 투명하게 처리
+            'bgcolor': "rgba(255, 255, 255, 0.05)",      # 배경 트랙을 아주 연하게 표시
+            'borderwidth': 1, 'bordercolor': "rgba(255, 255, 255, 0.2)",
             'steps': [
-                {'range': [-1, 0], 'color': "#311B92"}, 
-                {'range': [0, 1], 'color': "#512DA8"},
-                {'range': [1, 2], 'color': "#7B1FA2"}, 
-                {'range': [2, 4], 'color': "#D500F9"}
+                {'range': [-1, 1], 'color': COLOR_RED_ALPHA}, 
+                {'range': [1, 2], 'color': COLOR_NORMAL_ALPHA},
+                {'range': [2, 4], 'color': COLOR_PRIME_ALPHA}
             ],
             'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': sharpe_auto}
         }
     ))
+    
     fig_sharpe.add_annotation(
         text="SHARPE RATIO",
         x=0.5, y=0.35,
@@ -2741,38 +2778,59 @@ with m_right:
         font=dict(size=20, color="#888"),
         xanchor='center'
     )
+    
     fig_sharpe.update_layout(
         height=gauge_height, 
         margin=dict(t=50, b=10, l=30, r=30), 
         paper_bgcolor='rgba(0,0,0,0)', 
         font={'color': "#FFF"}
     )
+    
     g_col2.plotly_chart(fig_sharpe, use_container_width=True, config={'displayModeBar': False})
+
+            # 오리지널 게이지 컬러
+            #    {'range': [-1, 0], 'color': "#311B92"}, 
+            #    {'range': [0, 1], 'color': "#512DA8"},
+            #    {'range': [1, 2], 'color': "#7B1FA2"}, 
+            #    {'range': [2, 4], 'color': "#D500F9"}
+
+
 
 
 # --------------------------------------------------------------------------------
-# 1. [ALLOCATION] 자산 비중 분석 (Pie Charts) - 사이즈 및 비율 최적화
+# 1. [ALLOCATION] 자산 비중 분석 (Pie Charts) - 투명도 및 시각화 통일
 # --------------------------------------------------------------------------------
 st.markdown("---")
 st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
-# --- 디자인 및 색상 설정 ---
-PIE_TEXT_COLOR = "#FFFFFF"
-COLOR_ETC = "#555555"
-COLOR_CASH = "#4CAF50"
-COLOR_CRYPTO = "#D35400"
-COLOR_TSLA = "#D81B60"
-PALETTE_CLASS = ['#311B92', '#4527A0', '#512DA8', '#5E35B1', '#673AB7']
-PALETTE_SECTOR = ['#7B1FA2', '#8E24AA', '#9C27B0', '#AB47BC', '#BA68C8']
-PALETTE_HOLDINGS = ['#6200EA', '#651FFF', '#7C4DFF', '#B388FF', '#304FFE']
+# --- [디자인 및 RGBA 색상 설정] ---
+# 게이지와 동일하게 0.5 투명도 적용
+ALPHA = 0.8
 
+def hex_to_rgba(hex_code, alpha):
+    hex_code = hex_code.lstrip('#')
+    lv = len(hex_code)
+    rgb = tuple(int(hex_code[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {alpha})"
+
+# 핵심 자산 색상 (RGBA)
+RGBA_CASH = hex_to_rgba("#4CAF50", ALPHA)
+RGBA_CRYPTO = hex_to_rgba("#D35400", ALPHA)
+RGBA_TSLA = hex_to_rgba("#D81B60", ALPHA)
+RGBA_ETC = hex_to_rgba("#555555", ALPHA)
+
+# 팔레트 변환 (RGBA)
+RGBA_CLASS = [hex_to_rgba(c, ALPHA) for c in ['#311B92', '#4527A0', '#512DA8', '#5E35B1', '#673AB7']]
+RGBA_SECTOR = [hex_to_rgba(c, ALPHA) for c in ['#7B1FA2', '#8E24AA', '#9C27B0', '#AB47BC', '#BA68C8']]
+RGBA_HOLDINGS = [hex_to_rgba(c, ALPHA) for c in ['#6200EA', '#651FFF', '#7C4DFF', '#B388FF', '#304FFE']]
+
+PIE_TEXT_COLOR = "#FFFFFF"
 CUSTOM_HOVER_TEMPLATE = "<b>%{label}</b><br>%{percent}<extra></extra>"
 
 if not raw_assets and pm.data['cash']['USD'] == 0:
     st.warning("SYSTEM EMPTY. DEPLOY ASSETS TO INITIALIZE.")
 else:
     df_assets = pd.DataFrame(sorted_assets)
-    # [수정] 1:1:1 비율로 세 컬럼의 너비를 동일하게 설정
     chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1])
 
     def group_small_assets(df, label_col, value_col, threshold=0.01):
@@ -2783,24 +2841,23 @@ else:
         df.loc[df['percent_calc'] < threshold, label_col] = 'etc'
         return df.groupby(label_col)[value_col].sum().reset_index()
 
-    # --- 공통 차트 생성 함수 (일관된 사이즈 유지용) ---
+    # --- 공통 차트 생성 함수 ---
     def create_unified_pie(df, names_col, values_col, color_map, key_name):
         fig = px.pie(df, values=values_col, names=names_col, hole=0.5, 
                      color=names_col, color_discrete_map=color_map)
         fig.update_traces(
             hovertemplate=CUSTOM_HOVER_TEMPLATE,
             textinfo='percent+label',
-            textposition='inside', # 다시 내부로 복구하되 잘림 방지 로직 추가
+            textposition='inside',
             textfont=dict(color=PIE_TEXT_COLOR, size=12),
-            marker=dict(line=dict(color='#000000', width=2)),
+            # 테두리 선도 투명도에 맞춰 부드럽게 조정
+            marker=dict(line=dict(color='rgba(0,0,0,0.3)', width=1.5)),
             insidetextorientation='horizontal'
         )
         fig.update_layout(
-            # 모든 차트의 마진을 동일하게 설정
             margin=dict(t=30, b=30, l=10, r=10), 
             paper_bgcolor='rgba(0,0,0,0)', 
             showlegend=False,
-            # 글자가 작아도 숨기지 않고 최대한 표시
             uniformtext=dict(minsize=9, mode='show') 
         )
         st.plotly_chart(fig, use_container_width=True, key=key_name)
@@ -2813,12 +2870,12 @@ else:
             df_class['asset_class'] = df_class['asset_class'].replace('ETF', 'Stock')
             df_class = df_class.groupby('asset_class')['value_usd'].sum().reset_index()
             class_map = {
-                'Crypto': PALETTE_CLASS[0],
-                'Stock': PALETTE_CLASS[1], 
-                'Other': PALETTE_CLASS[3], 
-                'Cash': COLOR_CASH
+                'Crypto': RGBA_CLASS[0],
+                'Stock': RGBA_CLASS[1], 
+                'Other': RGBA_CLASS[3], 
+                'Cash': RGBA_CASH
             }
-            create_unified_pie(df_class, 'asset_class', 'value_usd', class_map, "chart_class_v6")
+            create_unified_pie(df_class, 'asset_class', 'value_usd', class_map, "chart_class_v7")
 
     # --- [CHART 2] STOCK SECTOR DISTRIBUTION ---
     with chart_col2:
@@ -2830,45 +2887,35 @@ else:
                 sector_colors = {}
                 for i, s in enumerate(df_stocks_grouped['sector']):
                     if s == 'etc':
-                        sector_colors[s] = COLOR_ETC
-                    # elif s == 'Crypto': # 섹터명이 CRYPTO일 때
-                    #    sector_colors[s] = COLOR_CRYPTO
-                    # elif s == 'AI':
-                    #    sector_colors[s] = COLOR_TSLA
+                        sector_colors[s] = RGBA_ETC
                     else:
-                        sector_colors[s] = PALETTE_SECTOR[i % len(PALETTE_SECTOR)]
-                create_unified_pie(df_stocks_grouped, 'sector', 'value_usd', sector_colors, "chart_sector_v6")
+                        sector_colors[s] = RGBA_SECTOR[i % len(RGBA_SECTOR)]
+                create_unified_pie(df_stocks_grouped, 'sector', 'value_usd', sector_colors, "chart_sector_v7")
             else:
                 st.markdown("<p style='text-align:center; color:#555; padding: 80px 0;'>NO DATA</p>", unsafe_allow_html=True)
 
-    # --- [CHART 3] TOTAL HOLDINGS (TSLA 특정 색상 지정 버전) ---
+    # --- [CHART 3] TOTAL HOLDINGS ---
     with chart_col3:
         with st.container(border=True):
             st.caption("TOTAL HOLDINGS")
             df_holdings = df_assets.copy()
-            # 티커 표시용 전처리 (-USD 제거 등)
             df_holdings['display_ticker'] = df_holdings['ticker'].str.replace("-USD", "")
-            
-            # 소액 자산 그룹화
             df_holdings_grouped = group_small_assets(df_holdings, 'display_ticker', 'value_usd', 0.01)
             
-            # [수정된 색상 매핑 로직]
             holdings_colors = {}
             for i, t in enumerate(df_holdings_grouped['display_ticker']):
-                # 이 시점에서 t가 BTC거나, 해당 티커의 원본 섹터가 Crypto인 경우
-                if t == 'BTC' or t == 'ETH': # 비트코인 표준 관련 종목들
-                    holdings_colors[t] = COLOR_CRYPTO
+                if t in ['BTC', 'ETH']:
+                    holdings_colors[t] = RGBA_CRYPTO
                 elif t == 'TSLA':
-                    holdings_colors[t] = COLOR_TSLA
+                    holdings_colors[t] = RGBA_TSLA
                 elif t == 'CASH':
-                    holdings_colors[t] = COLOR_CASH
+                    holdings_colors[t] = RGBA_CASH
                 elif t == 'etc':
-                    holdings_colors[t] = COLOR_ETC
+                    holdings_colors[t] = RGBA_ETC
                 else:
-                    holdings_colors[t] = PALETTE_HOLDINGS[i % len(PALETTE_HOLDINGS)]
+                    holdings_colors[t] = RGBA_HOLDINGS[i % len(RGBA_HOLDINGS)]
             
-            # 통합 차트 생성 함수 호출
-            create_unified_pie(df_holdings_grouped, 'display_ticker', 'value_usd', holdings_colors, "chart_holdings_tsla_fixed")
+            create_unified_pie(df_holdings_grouped, 'display_ticker', 'value_usd', holdings_colors, "chart_holdings_v7")
 
 
 
@@ -2932,97 +2979,145 @@ with st.spinner("Analyzing 2026 Asset Performance..."):
 
 
 # --------------------------------------------------------------------------------
-# 4. [HOLDINGS] 자산 관리 테이블 (Full Width)
+# 4. [HOLDINGS] 자산 관리 테이블 (Full Width & Toggle & Dropdown)
 # --------------------------------------------------------------------------------
 st.markdown("---")
-col_header, col_delete = st.columns([8, 1])
-with col_header:
-    st.header("HOLDINGS")
 
-if 'asset_buffer' not in st.session_state:
-    st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
+# [추가] Expander의 글자 크기를 크게 만드는 CSS 인젝션
+st.markdown("""
+    <style>
+    /* Expander 헤더의 글자 크기 조절 */
+    .stExpander p {
+        font-size: 2.1rem !important;
+        font-weight: bold !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-table_fx_rate = fx_rates.get(base_currency, 1.0)
-currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
-display_data = []
-buffer_assets = st.session_state['asset_buffer']
-display_map = [] 
+# [기능 1] st.expander를 통한 테이블 전체 토글(접기) 기능
+with st.expander("**HOLDINGS**", expanded=True):
+#    col_header, col_delete = st.columns([8, 1])
+#    with col_header:
+#        st.header("Manage Asset Inventory")
 
-for i, a in enumerate(buffer_assets):
-    if a['ticker'] == 'CASH': continue 
-    price = a.get('current_price', 0.0)
-    if price == 0: price = a.get('avg_price', 0.0)
-    val_calc = price * a.get('quantity', 0.0) * table_fx_rate
-    display_data.append({"DELETE": False, "TICKER": str(a.get('ticker', '')), "CLASS": str(a.get('asset_class', '')), "SECTOR": str(a.get('sector', '')), "QTY": f"{float(a.get('quantity', 0.0)):.4f}", "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", "CURRENT PRICE": f"${float(price):,.2f}", "VALUE": f"{currency_symbol}{val_calc:,.2f}"})
-    display_map.append(i)
+    # 세션 상태 버퍼 초기화
+    if 'asset_buffer' not in st.session_state:
+        st.session_state['asset_buffer'] = [a.copy() for a in sorted_assets]
 
-df_display = pd.DataFrame(display_data)
+    table_fx_rate = fx_rates.get(base_currency, 1.0)
+    currency_symbol = "$" if base_currency in ["USD", "CAD"] else "₩"
+    display_data = []
+    buffer_assets = st.session_state['asset_buffer']
+    display_map = [] 
 
-def save_edits():
-    state = st.session_state["holdings_editor"]
-    edited_rows = state.get("edited_rows", {})
-    deleted_rows = state.get("deleted_rows", [])
-    added_rows = state.get("added_rows", []) 
-    if not edited_rows and not deleted_rows and not added_rows: return
-    buffer = st.session_state['asset_buffer']
-    updates_made = False
-    checkbox_deletes = [int(idx) for idx, changes in edited_rows.items() if changes.get("DELETE") is True]
-    all_indices_to_delete = set(deleted_rows + checkbox_deletes)
-    if all_indices_to_delete:
-        rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
-        for buf_idx in rows_to_delete:
-            if buf_idx < len(buffer):
-                buffer.pop(buf_idx)
+    # 데이터 전처리 및 테이블용 리스트 생성
+    for i, a in enumerate(buffer_assets):
+        if a['ticker'] == 'CASH': continue 
+        price = a.get('current_price', 0.0)
+        if price == 0: price = a.get('avg_price', 0.0)
+        val_calc = price * a.get('quantity', 0.0) * table_fx_rate
+        
+        display_data.append({
+            "DELETE": False, 
+            "TICKER": str(a.get('ticker', '')), 
+            "CLASS": str(a.get('asset_class', '')), 
+            "SECTOR": str(a.get('sector', '')), 
+            "QTY": f"{float(a.get('quantity', 0.0)):.4f}", 
+            "AVG COST": f"{float(a.get('avg_price', 0.0)):.2f}", 
+            "CURRENT PRICE": f"${float(price):,.2f}", 
+            "VALUE": f"{currency_symbol}{val_calc:,.2f}"
+        })
+        display_map.append(i)
+
+    df_display = pd.DataFrame(display_data)
+
+    # [기능 2] 데이터 세이브 로직 (기존 로직 유지)
+    def save_edits():
+        state = st.session_state["holdings_editor"]
+        edited_rows = state.get("edited_rows", {})
+        deleted_rows = state.get("deleted_rows", [])
+        added_rows = state.get("added_rows", []) 
+        
+        if not edited_rows and not deleted_rows and not added_rows: return
+        
+        buffer = st.session_state['asset_buffer']
+        updates_made = False
+        
+        # 체크박스 삭제 처리
+        checkbox_deletes = [int(idx) for idx, changes in edited_rows.items() if changes.get("DELETE") is True]
+        all_indices_to_delete = set(deleted_rows + checkbox_deletes)
+        
+        if all_indices_to_delete:
+            rows_to_delete = sorted([display_map[i] for i in all_indices_to_delete if i < len(display_map)], reverse=True)
+            for buf_idx in rows_to_delete:
+                if buf_idx < len(buffer):
+                    buffer.pop(buf_idx)
+                    updates_made = True
+                    
+        # 개별 셀 수정 처리
+        for idx, changes in edited_rows.items():
+            if int(idx) in all_indices_to_delete: continue 
+            buf_idx = display_map[int(idx)]
+            asset = buffer[buf_idx]
+            if "QTY" in changes: 
+                try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
+                except: pass
                 updates_made = True
-    for idx, changes in edited_rows.items():
-        if int(idx) in all_indices_to_delete: continue 
-        buf_idx = display_map[int(idx)]
-        asset = buffer[buf_idx]
-        if "QTY" in changes: 
-            try: asset['quantity'] = float(str(changes["QTY"]).replace(',', ''))
-            except: pass
-            updates_made = True
-        if "AVG COST" in changes:
-            try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
-            except: pass
-            updates_made = True
-        if "SECTOR" in changes: asset['sector'] = str(changes["SECTOR"]).strip(); updates_made = True
-        if "CLASS" in changes: asset['asset_class'] = str(changes["CLASS"]).strip(); updates_made = True
-        if "TICKER" in changes: asset['ticker'] = str(changes["TICKER"]).strip().upper(); updates_made = True
-    if added_rows:
-        for new_row in added_rows:
-            raw_ticker = new_row.get('TICKER', '').strip().upper()
-            qty = 0.0; avg = 0.0
-            try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
-            except: pass
-            try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
-            except: pass
-            buffer.append({"ticker": raw_ticker, "quantity": qty, "avg_price": avg, "sector": "Unknown", "asset_class": "Stock", "value_usd": 0.0, "current_price": 0.0})
-            updates_made = True
-    if updates_made:
-        valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
-        cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
-        pm.data['assets'] = valid_assets + ([cash_asset] if cash_asset else [])
-        pm.save_data(); st.toast("✅ Portfolio Updated")
+            if "AVG COST" in changes:
+                try: asset['avg_price'] = float(str(changes["AVG COST"]).replace(',', '').replace('$', ''))
+                except: pass
+                updates_made = True
+            if "SECTOR" in changes: asset['sector'] = str(changes["SECTOR"]).strip(); updates_made = True
+            if "CLASS" in changes: asset['asset_class'] = str(changes["CLASS"]).strip(); updates_made = True
+            if "TICKER" in changes: asset['ticker'] = str(changes["TICKER"]).strip().upper(); updates_made = True
+            
+        # 신규 행 추가 처리
+        if added_rows:
+            for new_row in added_rows:
+                raw_ticker = new_row.get('TICKER', '').strip().upper()
+                qty = 0.0; avg = 0.0
+                try: qty = float(str(new_row.get('QTY', '0')).replace(',', ''))
+                except: pass
+                try: avg = float(str(new_row.get('AVG COST', '0')).replace('$', '').replace(',', ''))
+                except: pass
+                buffer.append({
+                    "ticker": raw_ticker, "quantity": qty, "avg_price": avg, 
+                    "sector": "Unknown", "asset_class": "Stock", 
+                    "value_usd": 0.0, "current_price": 0.0
+                })
+                updates_made = True
+                
+        if updates_made:
+            valid_assets = [a for a in buffer if a.get('ticker') and a.get('ticker') != "CASH"]
+            cash_asset = next((a for a in pm.data['assets'] if a['ticker'] == 'CASH'), None)
+            pm.data['assets'] = valid_assets + ([cash_asset] if cash_asset else [])
+            pm.save_data()
+            st.toast("✅ Portfolio Updated")
 
-st.data_editor(
-    df_display,
-    column_config={
-        "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
-        "TICKER": st.column_config.TextColumn("Ticker", width="small"), 
-        "CLASS": st.column_config.TextColumn("Class", width="medium"),
-        "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
-        "QTY": st.column_config.TextColumn("Quantity", width="small"), 
-        "AVG COST": st.column_config.TextColumn("Avg Cost", width="small"), 
-        "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
-        "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="medium", disabled=True) 
-    },
-    hide_index=True,
-    use_container_width=True,
-    key="holdings_editor",
-    on_change=save_edits,
-    num_rows="dynamic" 
-)
+    # [기능 3] st.data_editor 출력 부분
+    st.data_editor(
+        df_display,
+        column_config={
+            "DELETE": st.column_config.CheckboxColumn("🗑️", width="small"),
+            "TICKER": st.column_config.TextColumn("Ticker", width="small"), 
+            "CLASS": st.column_config.SelectboxColumn(
+                "Class", 
+                width="medium",
+                options=["Stock", "Bond", "ETF", "Crypto"],
+                required=True
+            ),
+            "SECTOR": st.column_config.TextColumn("Sector", width="medium"),
+            "QTY": st.column_config.TextColumn("Quantity", width="small"), 
+            "AVG COST": st.column_config.TextColumn("Avg Cost", width="small"), 
+            "CURRENT PRICE": st.column_config.TextColumn("Price (USD)", width="medium", disabled=True), 
+            "VALUE": st.column_config.TextColumn(f"Value ({base_currency})", width="medium", disabled=True) 
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="holdings_editor",
+        on_change=save_edits,
+        num_rows="dynamic" 
+    )
 
 
 
