@@ -2569,18 +2569,21 @@ elif menu != "Portfolio":
 if 'base_currency' not in locals():
     base_currency = pm.get_setting("base_currency", "USD")
 
-# --- Main Dashboard ---
+# --- Main Dashboard (V756: Syntax Fix & Core Summary) ---
 st.title("PORTFOLIO MANAGER")
 
-# 1. Header & Data Pre-processing
-fx_rates, is_stale_flag = md.get_fx_rates()
+# [데이터 엔진 - 기존 로직 유지]
+fx_rates, _ = md.get_fx_rates()
 raw_assets = pm.get_assets()
 total_val_display, sorted_assets = process_assets(raw_assets, fx_rates, base_currency)
 
-# --- History Calculation (기존 로직 유지) ---
+# [계산 엔진 - YTD & Sharpe & MDD]
+ytd_return = 0.0
+sharpe_auto = 0.0
+mdd_value = 0.0
+
 real_assets = [a for a in sorted_assets if a['ticker'] != 'CASH']
 total_history_display = pd.Series()
-
 if real_assets:
     prices = get_cached_historical_data(st.session_state.ae, real_assets)
     if not prices.empty:
@@ -2589,141 +2592,268 @@ if real_assets:
         for asset in real_assets:
             if asset['ticker'] in prices.columns:
                 portfolio_value_series = portfolio_value_series.add(prices[asset['ticker']] * asset['quantity'], fill_value=0)
-        
         total_cash_usd = next((a['value_usd'] for a in sorted_assets if a['ticker'] == 'CASH'), 0.0)
-        total_history_usd = portfolio_value_series + total_cash_usd
-        growth_fx = fx_rates.get(base_currency, 1.0)
-        total_history_display = total_history_usd * growth_fx
+        total_history_display = (portfolio_value_series + total_cash_usd) * fx_rates.get(base_currency, 1.0)
+        
+        # 1. YTD 계산
+        this_year_start = pd.Timestamp(datetime(datetime.now().year, 1, 1))
+        this_year_data = total_history_display[total_history_display.index >= this_year_start]
+        if not this_year_data.empty:
+            ytd_return = (total_history_display.iloc[-1] - this_year_data.iloc[0]) / this_year_data.iloc[0]
 
-# --- Metrics Calculation ---
-ytd_return = 0.0
-if not total_history_display.empty:
-    current_year = datetime.now().year
-    start_of_year = datetime(current_year, 1, 1)
-    if not isinstance(total_history_display.index, pd.DatetimeIndex):
-        total_history_display.index = pd.to_datetime(total_history_display.index)
-    this_year_data = total_history_display[total_history_display.index >= pd.Timestamp(start_of_year)]
-    current_val = total_history_display.iloc[-1]
-    if not this_year_data.empty:
-        start_val_ytd = this_year_data.iloc[0]
-        if start_val_ytd > 0:
-            ytd_return = (current_val - start_val_ytd) / start_val_ytd
+        # 2. MDD 실시간 계산
+        rolling_max = total_history_display.cummax()
+        drawdowns = (total_history_display - rolling_max) / rolling_max
+        mdd_value = drawdowns.min()
+
+# [전략적 Sharpe Ratio 계산]
+RISK_BENCHMARKS = {"Crypto": {"roi": 0.70, "vol": 0.60}, "Stock": {"roi": 0.12, "vol": 0.20}, "Bond": {"roi": 0.04, "vol": 0.08}, "Cash": {"roi": 0.035, "vol": 0.00}, "Other": {"roi": 0.05, "vol": 0.10}}
+RF_RATE = 0.035
+class_mapping = {"Crypto": "Crypto", "Stock": "Stock", "ETF": "Stock", "Cash": "Cash", "Bond": "Bond"}
+total_p_value = sum(a['value_usd'] for a in sorted_assets)
+weighted_roi, weighted_vol = 0.0, 0.0
+if total_p_value > 0:
+    for asset in sorted_assets:
+        ac = asset.get('asset_class', 'Other')
+        weight = asset['value_usd'] / total_p_value
+        bench_key = class_mapping.get(ac, "Other")
+        metrics = RISK_BENCHMARKS.get(bench_key, RISK_BENCHMARKS["Other"])
+        weighted_roi += metrics['roi'] * weight
+        weighted_vol += metrics['vol'] * weight
+    if weighted_vol > 0:
+        sharpe_auto = (weighted_roi - RF_RATE) / weighted_vol
 
 # --------------------------------------------------------------------------------
-# 🎯 [V700] No Arrow Minimalist & Spacing Adjustment
+# 🎯 UI 레이아웃 (V756: Fixed Syntax)
 # --------------------------------------------------------------------------------
+m_left, m_right = st.columns([3, 7])
 
-# m_col3(토글)과 m_spacer(여백) 사이의 비율을 조정하여 토글을 오른쪽으로 살짝 이동시킵니다.
-m_col1, m_col2, m_col3, m_spacer = st.columns([1.6, 1.3, 1.2, 3.2])
+with m_left:
+    # Privacy Mode 위치 조정 (상단 여백 추가)
+    # 토글 위치 조정
+    st.markdown('<div style="margin-top: 30px;"></div>', unsafe_allow_html=True)
+    hide_sensitive = st.toggle("Privacy Mode", value=False, key="privacy_filter_v756")
+    
+    # 폰트 사이즈 업그레이드 (38px -> 46px) 및 스타일 정밀 조정
+    BASE_STYLE = 'font-weight: 700; line-height: 1.0; letter-spacing: -1.5px;'
+    PURPLE_TEXT = f'font-size: 46px; {BASE_STYLE} color: #D500F9; text-shadow: 0 0 15px rgba(213, 0, 249, 0.4);'
+    
+    ytd_color = "#00E676" if ytd_return > 0 else "#FF5252" if ytd_return < 0 else "#B0B0B0"
+    YTD_TEXT = f'font-size: 46px; {BASE_STYLE} color: {ytd_color};'
 
-with m_col3:
-    st.write("") # 수직 정렬 최적화
-    st.write("")
-    hide_sensitive = st.toggle("Hide Data", value=False, key="privacy_filter_v700")
+    val_display = f"{total_val_display:,.2f}" if not hide_sensitive else "••••••••"
+    ytd_display = f"{ytd_return:.2%}" if not hide_sensitive else "••••"
 
-# 공통 스타일 정의
-BASE_NEON = 'font-size: 38px; font-weight: 700; line-height: 1.1; letter-spacing: -1px;'
-PURPLE_GLOW = f'{BASE_NEON} color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4);'
-
-# YTD 수익률 색상 분기 (화살표 제거)
-if ytd_return > 0:
-    ytd_color = "#00E676"
-    ytd_shadow = "rgba(0, 230, 118, 0.4)"
-elif ytd_return < 0:
-    ytd_color = "#FF5252"
-    ytd_shadow = "rgba(255, 82, 82, 0.4)"
-else:
-    ytd_color = "#B0B0B0"
-    ytd_shadow = "rgba(176, 176, 176, 0.2)"
-
-YTD_NEON = f'{BASE_NEON} color: {ytd_color}; text-shadow: 0 0 10px {ytd_shadow};'
-MASK_NEON = f'font-size: 38px; font-weight: 700; color: #D500F9; text-shadow: 0 0 10px rgba(213, 0, 249, 0.4); letter-spacing: 3px;'
-
-# 마스킹 결정
-if not hide_sensitive:
-    val_html = f'<span style="{PURPLE_GLOW}">{total_val_display:,.2f}</span>'
-    ytd_html = f'<span style="{YTD_NEON}">{ytd_return:.2%}</span>' # 🚀 화살표 삭제됨
-else:
-    val_html = f'<span style="{MASK_NEON}">••••••••</span>'
-    ytd_html = f'<span style="{MASK_NEON}">••••</span>'
-
-# 1. NET ASSET VALUE
-with m_col1:
+    # margin-top을 대폭 늘려(20px -> 80px) 게이지와 수평 중심을 맞춤
+    # 첫번째 margin-top: Net Asset Value와 토글과의 간격 조정
+    # 두번째 margin-top: YTD PERFORMANCE와 Net Asset Value와의 간격 조정
     st.markdown(f"""
-        <div style="margin-bottom: 2px;">
-            <span style="font-size: 13px; color: #B0B0B0; font-weight: 500;">NET ASSET VALUE ({base_currency})</span>
+        <div style="margin-top: 35px;">         
+            <p style="font-size: 13px; color: #888; margin-bottom: 4px; letter-spacing: 1.5px; font-weight: 500;">NET ASSET VALUE</p>
+            <p style="{PURPLE_TEXT}">{val_display} <span style="font-size: 16px; color: #444; font-weight: 600;">{base_currency}</span></p>
         </div>
-        {val_html}
-    """, unsafe_allow_html=True)
-
-# 2. YTD Return (No Arrow)
-with m_col2:
-    st.markdown(f"""
-        <div style="margin-bottom: 2px;">
-            <span style="font-size: 13px; color: #B0B0B0; font-weight: 500;">YTD Return</span>
-        </div>
-        <div style="display: flex; align-items: center; height: 42px;">
-            {ytd_html}
+        <div style="margin-top: 40px;">        
+            <p style="font-size: 13px; color: #888; margin-bottom: 4px; letter-spacing: 1.5px; font-weight: 500;">YTD PERFORMANCE</p>
+            <p style="{YTD_TEXT}">{ytd_display}</p>
         </div>
     """, unsafe_allow_html=True)
 
-with m_spacer:
-    st.write("")
+with m_right:
+    g_col1, g_col2 = st.columns(2)
+    mdd_display_color = "#FF5252" if mdd_value < 0 else "#00E676"
+
+    # 공통 설정값
+    gauge_height = 300
+    gauge_domain = {'x': [0, 1], 'y': [0, 0.8]} 
+
+    # 1. MDD GAUGE
+    fig_mdd = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = mdd_value * 100,
+        domain = gauge_domain, 
+        number = {'font': {'size': 40, 'color': mdd_display_color}, 'suffix': "%", 'valueformat': ".1f"},
+        gauge = {
+            'axis': {'range': [-60, 0], 'tickwidth': 1, 'tickcolor': "#FFF", 'tickfont': {'size': 10}},
+            'bar': {'color': "#FFF"},
+            'bgcolor': "rgba(0,0,0,0)",
+            'borderwidth': 1, 'bordercolor': "#444",
+            'steps': [
+                {'range': [-60, -40], 'color': "#311B92"}, {'range': [-40, -20], 'color': "#512DA8"},
+                {'range': [-20, -10], 'color': "#7B1FA2"}, {'range': [-10, 0], 'color': "#D500F9"}
+            ],
+            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': mdd_value * 100}
+        }
+    ))
+    fig_mdd.add_annotation(
+        text="MDD",
+        x=0.5, y=0.35,  # ✅ 게이지 중앙에 텍스트 배치 (y 값을 조정하세요)
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=20, color="#888"),
+        xanchor='center'
+    )
+    fig_mdd.update_layout(
+        height=gauge_height, 
+        margin=dict(t=50, b=10, l=30, r=30),
+        paper_bgcolor='rgba(0,0,0,0)', 
+        font={'color': "#FFF"}
+    )
+    g_col1.plotly_chart(fig_mdd, use_container_width=True, config={'displayModeBar': False})
+
+    # 2. SHARPE RATIO GAUGE
+    fig_sharpe = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = sharpe_auto,
+        domain = gauge_domain,
+        number = {'font': {'size': 40, 'color': "#D500F9"}, 'valueformat': ".2f"},
+        gauge = {
+            'axis': {'range': [-1, 4], 'tickwidth': 1, 'tickcolor': "#FFF", 'tickfont': {'size': 10}},
+            'bar': {'color': "#FFF"},
+            'bgcolor': "rgba(0,0,0,0)",
+            'borderwidth': 1, 'bordercolor': "#444",
+            'steps': [
+                {'range': [-1, 0], 'color': "#311B92"}, {'range': [0, 1], 'color': "#512DA8"},
+                {'range': [1, 2], 'color': "#7B1FA2"}, {'range': [2, 4], 'color': "#D500F9"}
+            ],
+            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': sharpe_auto}
+        }
+    ))
+    fig_sharpe.add_annotation(
+        text="SHARPE RATIO",
+        x=0.5, y=0.35,  # ✅ 게이지 중앙에 텍스트 배치 (y 값을 조정하세요)
+        xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=20, color="#888"),
+        xanchor='center'
+    )
+    fig_sharpe.update_layout(
+        height=gauge_height, 
+        margin=dict(t=50, b=10, l=30, r=30), 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        font={'color': "#FFF"}
+    )
+    g_col2.plotly_chart(fig_sharpe, use_container_width=True, config={'displayModeBar': False})
 
 st.markdown("---")
 
-
 # --------------------------------------------------------------------------------
-# 1. [ALLOCATION] 자산 비중 분석 (Pie Charts)
+# 1. [ALLOCATION] 자산 비중 분석 (Pie Charts) - 사이즈 및 비율 최적화
 # --------------------------------------------------------------------------------
 st.header(section_labels.get("strategic_allocation", "ALLOCATION"))
 
-# TEXT COLOR & PALETTES
+# --- 디자인 및 색상 설정 ---
 PIE_TEXT_COLOR = "#FFFFFF"
+COLOR_ETC = "#555555"
+COLOR_CASH = "#4CAF50"
+COLOR_CRYPTO = "#D35400"
+COLOR_TSLA = "#D81B60"
 PALETTE_CLASS = ['#311B92', '#4527A0', '#512DA8', '#5E35B1', '#673AB7']
 PALETTE_SECTOR = ['#7B1FA2', '#8E24AA', '#9C27B0', '#AB47BC', '#BA68C8']
 PALETTE_HOLDINGS = ['#6200EA', '#651FFF', '#7C4DFF', '#B388FF', '#304FFE']
-COLOR_CASH = "#9E9D24"
+
+CUSTOM_HOVER_TEMPLATE = "<b>%{label}</b><br>%{percent}<extra></extra>"
 
 if not raw_assets and pm.data['cash']['USD'] == 0:
     st.warning("SYSTEM EMPTY. DEPLOY ASSETS TO INITIALIZE.")
 else:
     df_assets = pd.DataFrame(sorted_assets)
-    chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1.2])
+    # [수정] 1:1:1 비율로 세 컬럼의 너비를 동일하게 설정
+    chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1])
 
+    def group_small_assets(df, label_col, value_col, threshold=0.01):
+        total_val = df[value_col].sum()
+        if total_val == 0: return df
+        df = df.copy()
+        df['percent_calc'] = df[value_col] / total_val
+        df.loc[df['percent_calc'] < threshold, label_col] = 'etc'
+        return df.groupby(label_col)[value_col].sum().reset_index()
+
+    # --- 공통 차트 생성 함수 (일관된 사이즈 유지용) ---
+    def create_unified_pie(df, names_col, values_col, color_map, key_name):
+        fig = px.pie(df, values=values_col, names=names_col, hole=0.5, 
+                     color=names_col, color_discrete_map=color_map)
+        fig.update_traces(
+            hovertemplate=CUSTOM_HOVER_TEMPLATE,
+            textinfo='percent+label',
+            textposition='inside', # 다시 내부로 복구하되 잘림 방지 로직 추가
+            textfont=dict(color=PIE_TEXT_COLOR, size=12),
+            marker=dict(line=dict(color='#000000', width=2)),
+            insidetextorientation='horizontal'
+        )
+        fig.update_layout(
+            # 모든 차트의 마진을 동일하게 설정
+            margin=dict(t=30, b=30, l=10, r=10), 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            showlegend=False,
+            # 글자가 작아도 숨기지 않고 최대한 표시
+            uniformtext=dict(minsize=9, mode='show') 
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key_name)
+
+    # --- [CHART 1] CLASS DISTRIBUTION ---
     with chart_col1:
         with st.container(border=True):
             st.caption("CLASS DISTRIBUTION")
             df_class = df_assets.copy()
             df_class['asset_class'] = df_class['asset_class'].replace('ETF', 'Stock')
-            class_map = {'Crypto': PALETTE_CLASS[0], 'Stock': PALETTE_CLASS[1], 'Other': PALETTE_CLASS[3], 'Cash': COLOR_CASH}
-            fig = px.pie(df_class, values='value_usd', names='asset_class', hole=0.5, color='asset_class', color_discrete_map=class_map)
-            fig.update_traces(textinfo='percent+label', textposition='inside', textfont=dict(size=12, color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
-            fig.update_layout(margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            df_class = df_class.groupby('asset_class')['value_usd'].sum().reset_index()
+            class_map = {
+                'Crypto': PALETTE_CLASS[0],
+                'Stock': PALETTE_CLASS[1], 
+                'Other': PALETTE_CLASS[3], 
+                'Cash': COLOR_CASH
+            }
+            create_unified_pie(df_class, 'asset_class', 'value_usd', class_map, "chart_class_v6")
 
+    # --- [CHART 2] STOCK SECTOR DISTRIBUTION ---
     with chart_col2:
         with st.container(border=True):
             st.caption("STOCK SECTOR DISTRIBUTION")
-            df_stocks = df_assets[df_assets['asset_class'] == 'Stock']
+            df_stocks = df_assets[df_assets['asset_class'].isin(['Stock', 'ETF'])].copy()
             if not df_stocks.empty:
-                fig = px.pie(df_stocks, values='value_usd', names='sector', hole=0.5, color_discrete_sequence=PALETTE_SECTOR)
-                fig.update_traces(textinfo='percent+label', textposition='inside', insidetextorientation='horizontal', textfont=dict(size=12, color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
-                fig.update_layout(margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
+                df_stocks_grouped = group_small_assets(df_stocks, 'sector', 'value_usd', 0.01)
+                sector_colors = {}
+                for i, s in enumerate(df_stocks_grouped['sector']):
+                    if s == 'etc':
+                        sector_colors[s] = COLOR_ETC
+                    # elif s == 'Crypto': # 섹터명이 CRYPTO일 때
+                    #    sector_colors[s] = COLOR_CRYPTO
+                    # elif s == 'AI':
+                    #    sector_colors[s] = COLOR_TSLA
+                    else:
+                        sector_colors[s] = PALETTE_SECTOR[i % len(PALETTE_SECTOR)]
+                create_unified_pie(df_stocks_grouped, 'sector', 'value_usd', sector_colors, "chart_sector_v6")
             else:
-                st.markdown("<p style='text-align:center; color:#555; padding: 80px 0;'>NO STOCK DATA</p>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align:center; color:#555; padding: 80px 0;'>NO DATA</p>", unsafe_allow_html=True)
 
+    # --- [CHART 3] TOTAL HOLDINGS (TSLA 특정 색상 지정 버전) ---
     with chart_col3:
         with st.container(border=True):
             st.caption("TOTAL HOLDINGS")
-            df_final_pie = df_assets.copy()
-            df_final_pie['display_ticker'] = df_final_pie['ticker'].str.replace("-USD", "")
-            holdings_colors = {t: (COLOR_CASH if t == 'CASH' else PALETTE_HOLDINGS[i % len(PALETTE_HOLDINGS)]) for i, t in enumerate(df_final_pie['display_ticker'])}
-            fig = px.pie(df_final_pie, values='value_usd', names='display_ticker', hole=0.5, color='display_ticker', color_discrete_map=holdings_colors)
-            fig.update_traces(textinfo='percent+label', textposition='inside', insidetextorientation='horizontal', textfont=dict(color=PIE_TEXT_COLOR), marker=dict(line=dict(color='#000000', width=2)))
-            fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            df_holdings = df_assets.copy()
+            # 티커 표시용 전처리 (-USD 제거 등)
+            df_holdings['display_ticker'] = df_holdings['ticker'].str.replace("-USD", "")
+            
+            # 소액 자산 그룹화
+            df_holdings_grouped = group_small_assets(df_holdings, 'display_ticker', 'value_usd', 0.01)
+            
+            # [수정된 색상 매핑 로직]
+            holdings_colors = {}
+            for i, t in enumerate(df_holdings_grouped['display_ticker']):
+                # 이 시점에서 t가 BTC거나, 해당 티커의 원본 섹터가 Crypto인 경우
+                if t == 'BTC' or t == 'ETH': # 비트코인 표준 관련 종목들
+                    holdings_colors[t] = COLOR_CRYPTO
+                elif t == 'TSLA':
+                    holdings_colors[t] = COLOR_TSLA
+                elif t == 'CASH':
+                    holdings_colors[t] = COLOR_CASH
+                elif t == 'etc':
+                    holdings_colors[t] = COLOR_ETC
+                else:
+                    holdings_colors[t] = PALETTE_HOLDINGS[i % len(PALETTE_HOLDINGS)]
+            
+            # 통합 차트 생성 함수 호출
+            create_unified_pie(df_holdings_grouped, 'display_ticker', 'value_usd', holdings_colors, "chart_holdings_tsla_fixed")
 
 st.markdown("---")
 
@@ -2739,7 +2869,7 @@ with st.container(border=True):
         fig_growth.add_trace(go.Scatter(x=total_history_display.index, y=total_history_display.values, fill='tozeroy', mode='lines', line=dict(color=PURPLE_LINE, width=2), fillcolor=PURPLE_FILL, name=f'Portfolio ({base_currency})'))
         fig_growth.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=30, b=10, l=10, r=10), yaxis=dict(gridcolor='#222'), xaxis=dict(gridcolor='#222'), font=dict(color='#888'), height=350, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig_growth, use_container_width=True)
-        st.caption(f"**Analysis Start:** {total_history_display.index[0].strftime('%Y-%m-%d')}")
+        st.caption(f"**Analysis Start:** {total_history_display.index[0].strftime('%Y-%m-%d')} | Source: Yahoo Finance & Global Exchange Data")
     else:
         st.info("DATASTREAM OFFLINE.")
 
@@ -2775,7 +2905,7 @@ with st.spinner("Analyzing 2026 Asset Performance..."):
                         fig_ytd.update_layout(hovermode="x unified", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=10, l=10, r=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), yaxis=dict(title="Return (%)", gridcolor='rgba(255,255,255,0.05)', ticksuffix="%"), xaxis=dict(range=[target_start, ytd_perf.index[-1]], gridcolor='rgba(255,255,255,0.05)'))
                         fig_ytd.add_hline(y=0, line_dash="solid", line_color="rgba(255,255,255,0.2)")
                         st.plotly_chart(fig_ytd, use_container_width=True)
-                        st.caption(f"**Base Date:** {display_df.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%)")
+                        st.caption(f"**Base Date:** {display_df.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%) | Source: Yahoo Finance & Global Exchange Data")
                         last_p = ytd_perf.iloc[-1]
                         if isinstance(last_p, pd.Series):
                             st.info(f"YTD TOP: **{last_p.idxmax()}** ({last_p.max():+.2f}%)")
