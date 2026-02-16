@@ -19,6 +19,30 @@ st.set_page_config(page_title="Portfolio Manager", layout="wide", page_icon=None
 
 
 
+# --- 공통 푸터 함수 정의 (업그레이드) ---
+def render_footer(sidebar=False):
+    # 어디에 출력할지 결정 (st 또는 st.sidebar)
+    target = st.sidebar if sidebar else st
+    
+    # 사이드바용일 때는 구분선(---)을 생략하거나 마진을 줄여 조절 가능
+    if not sidebar:
+        target.markdown("---")
+    
+    target.markdown(f"""
+        <div style="
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            color: #777777;
+            text-align: center;
+            letter-spacing: 1px;
+            padding-top: { '10px' if sidebar else '50px' };
+            padding-bottom: 20px;
+            font-weight: 500;
+            width: 100%;
+        ">
+            RABBIT TERMINAL v2026.02
+        </div>
+    """, unsafe_allow_html=True)
 
 
 
@@ -520,6 +544,8 @@ with st.sidebar:
         
         st.markdown("---")
 
+
+
         # 2. CASH (현금 관리)
         st.subheader("CASH")
         cash_data = pm.data.get('cash', {'USD':0.0, 'CAD':0.0, 'KRW':0.0})
@@ -542,60 +568,50 @@ with st.sidebar:
             
         st.markdown("---")
 
-        # 3. ADD NEW ASSET (자산 추가)
-        with st.expander("➕ Add New Asset", expanded=False):
-            with st.form("add_asset_form_sidebar"):
-                new_ticker = st.text_input("Ticker Symbol").upper()
+
+
+
+        # 3. ADD NEW ASSET (자산 추가 섹션)
+        st.sidebar.subheader("Add New Asset") # 익스팬더 대신 서브헤더 사용
+
+        # 폼 내부의 텍스트가 커지는 것을 방지하기 위해 폼 자체를 사이드바에 직접 배치
+        with st.sidebar.form("add_asset_form_sidebar"):
+            new_ticker = st.text_input("Ticker Symbol", placeholder="e.g. BTC, TSLA").upper()
+            
+            c_qty, c_cost = st.columns(2)
+            with c_qty:
+                new_qty = st.number_input("Qty", min_value=0.0, format="%.4f")
+            with c_cost:
+                new_cost = st.number_input("Avg Cost", min_value=0.0, format="%.2f")
+            
+            new_class = st.selectbox("Class", ["Stock", "Crypto", "ETF", "Bond", "Cash", "Other"])
+            new_sector = st.text_input("Sector", value="Technology")
+            
+            # 버튼 스타일이 전역 CSS에 오염되지 않도록 container width 활용
+            submitted_add = st.form_submit_button("ADD TO PORTFOLIO", use_container_width=True)
+            
+            if submitted_add and new_ticker:
+                curr_price = 0.0
+                info = md.get_asset_info(new_ticker)
+                if info:
+                    curr_price = md.get_current_price(new_ticker)
+                    if new_sector == "Technology":
+                        new_sector = info.get('sector', new_sector)
                 
-                c_qty, c_cost = st.columns(2)
-                with c_qty:
-                    new_qty = st.number_input("Qty", min_value=0.0, format="%.4f")
-                with c_cost:
-                    new_cost = st.number_input("Avg Cost", min_value=0.0, format="%.2f")
-                
-                new_class = st.selectbox("Class", ["Stock", "Crypto", "ETF", "Bond", "Cash", "Other"])
-                new_sector = st.text_input("Sector", value="Technology")
-                
-                submitted_add = st.form_submit_button("ADD", use_container_width=True)
-                
-                if submitted_add and new_ticker:
-                    curr_price = 0.0
-                    info = md.get_asset_info(new_ticker)
-                    if info:
-                        curr_price = md.get_current_price(new_ticker)
-                        if new_sector == "Technology":
-                            new_sector = info.get('sector', new_sector)
-                    
-                    new_asset_entry = {
-                        "ticker": new_ticker, "quantity": new_qty, "avg_price": new_cost,
-                        "sector": new_sector, "asset_class": new_class,
-                        "value_usd": 0.0, "current_price": curr_price
-                    }
-                    pm.add_or_update_asset(new_asset_entry)
-                    pm.save_data()
-                    st.toast(f"Asset Added: {new_ticker}")
-                    time.sleep(0.5)
-                    st.rerun()
+                new_asset_entry = {
+                    "ticker": new_ticker, "quantity": new_qty, "avg_price": new_cost,
+                    "sector": new_sector, "asset_class": new_class,
+                    "value_usd": 0.0, "current_price": curr_price
+                }
+                pm.add_or_update_asset(new_asset_entry)
+                pm.save_data()
+                st.toast(f"✅ Asset Added: {new_ticker}")
+                time.sleep(0.5)
+                st.rerun()
 
         st.markdown("---")
-    # [D] Sidebar Footer (모든 메뉴에서 공통으로 보이도록 if문 밖으로 탈출!)
-    # st.sidebar를 직접 명시하여 확실하게 위치를 고정합니다.
-    st.sidebar.markdown(
-        """
-        <div style="
-            text-align: center; 
-            color: #777; 
-            font-size: 13px; 
-            margin-top: 10px;
-            margin-bottom: 30px;
-            width: 100%;
-            font-family: 'Courier New', Courier, monospace;
-        ">
-            RABBIT TERMINAL v2026.02
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+
+render_footer(sidebar=True)
 
 
 
@@ -1026,7 +1042,11 @@ if menu == "Macro":
     st.caption("Source: Federal Reserve Bank of St. Louis (FRED)")
 
     # 매크로 섹션의 진짜 마지막 지점에서 딱 한 번 멈춥니다.
+    render_footer()    
     st.stop()
+
+
+
 
 
 
@@ -1137,8 +1157,6 @@ elif menu == "Market":
                     st.caption(f"Base Date: {data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
 
-
-
     # [B] U.S. INDEX ETF PERFORMANCE ANALYZER (V111: Date & Color Customization)
     st.markdown("---")
     st.subheader("U.S. INDEX ETF PERFORMANCE")
@@ -1225,9 +1243,6 @@ elif menu == "Market":
                     )
                     st.plotly_chart(fig_etf, use_container_width=True)
                     st.caption(f"Base Date: {etf_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
-
-
-
 
 
     # [C] SECTOR PERFORMANCE ANALYZER (V120: SPY Priority & Dot Style)
@@ -1323,9 +1338,6 @@ elif menu == "Market":
                 st.caption(f"Base Date: {sec_raw_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0.00%) | Source: Yahoo Finance & Global Exchange Data")
 
 
-
-
-
     # [D] GROWTH vs VALUE ROTATION ANALYZER (V117)
     st.markdown("---")
     st.subheader("GROWTH vs VALUE")
@@ -1407,8 +1419,6 @@ elif menu == "Market":
             current_ratio = ratio_norm.iloc[-1]
             status = "성장주 우위" if current_ratio > 0 else "가치주 우위"
             st.info(f"**Insight:** 기준일 대비 **{status}** 상태입니다. (Ratio 변동률: {current_ratio:.2f}%)")
-
-
 
 
     # [F] COMMODITIES & DOLLAR INDEX RADAR (V121: Sequence Enforcement)
@@ -1502,7 +1512,6 @@ elif menu == "Market":
                     st.caption(f"Base Date: {rot_data.index[0].strftime('%Y-%m-%d')} (Normalized to 0%) | Source: Yahoo Finance & Global Exchange Data")
 
 
-
     # [G] COPPER / GOLD RATIO ANALYZER (V122: The Economic Pulse)
     st.markdown("---")
     st.subheader("COPPER/GOLD RATIO")
@@ -1584,6 +1593,7 @@ elif menu == "Market":
             cgr_status = "경기 확장/인플레이션 압력" if current_cgr > 0 else "경기 둔화/디플레이션 우려"
             st.info(f"**Insight:** 기준일 대비 Copper/Gold 비율이 **{current_cgr:.2f}% { '상승' if current_cgr > 0 else '하락' }**하여, **{cgr_status}** 시그널을 보이고 있습니다.")
 
+    render_footer()
     st.stop()
 
 
@@ -2055,7 +2065,7 @@ elif menu == "Crypto":
                 st.info(f"**Insight:** 달러 인덱스는 기준일 대비 **{current_dxy:.2f}% {'강세' if current_dxy > 0 else '약세'}**이며, 금 대비 비트코인 구매력은 **{current_ratio_gain:.2f}% {'확장' if current_ratio_gain > 0 else '축소'}** 중입니다.")
 
 
-
+    render_footer()
     st.stop()
 
 
@@ -2545,9 +2555,9 @@ elif menu == "Bitcoin Standard":
         st.plotly_chart(fig_hm, use_container_width=True)
         st.caption(f"Last Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Weekend Data Forced) | Source: Yahoo Finance & Global Exchange Data")
 
-
-
+    render_footer()
     st.stop()
+
 
 
 
@@ -3134,63 +3144,47 @@ with st.expander("**HOLDINGS**", expanded=True):
 
 
 # --------------------------------------------------------------------------------
-# 🎯 STRATEGIC PROJECTION: Custom Setup Box (No Expander - Fixed Order)
+# 🎯 STRATEGIC PROJECTION: Clean Setup Box
 # --------------------------------------------------------------------------------
 st.markdown("---")
 st.header("STRATEGIC PROJECTION")
 
-# [1. 전용 스타일 정의]
-# setup-title: 목표 설정 제목 - Target Configuration
-# krw-text: 환율 적용된 KRW 금액을 보여주는 텍스트 - KRW 약 xx원
-# div[data-testid="stNumberInput"] label p: TARGET NAV (USD) 제목 텍스트
-st.markdown("""
-    <style>
-    .setup-title {
-        font-size: 25px !important;
-        font-weight: 700 !important;
-        color: #D500F9 !important;
-        margin-bottom: 15px;
-    }
-    .krw-text {
-        font-size: 20px !important; 
-        color: #00E676 !important;
-        font-weight: 600 !important;
-    }
-    div[data-testid="stNumberInput"] label p {
-        font-size: 20px !important;
-        font-weight: 600 !important;
-        color: #888888 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# [2. 데이터 준비 및 목표 설정]
+# [1. 데이터 준비]
 from datetime import datetime
 import pandas as pd
 import numpy as np
 
 current_year = datetime.now().year
 years_to_target = 2030 - current_year
-years_range = np.arange(0, years_to_target + 1) # 변수 정의 완료
+years_range = np.arange(0, years_to_target + 1)
 
+# [2. 목표 설정 위젯]
 with st.container():
-#    st.markdown('<p class="setup-title">TARGET CONFIGURATION</p>', unsafe_allow_html=True)
-    
     col_input, col_info = st.columns([1, 1])
+    
     with col_input:
+        # CSS 없이 기본 number_input 사용 (사이드바에 영향 없음)
         user_target_usd = st.number_input(
             "TARGET NAV (USD)", 
             min_value=100000, 
             value=1500000, 
             step=100000,
             format="%d",
-            key="target_val_v_final"
+            key="target_val_v_final_clean"
         )
+    
     with col_info:
         krw_val = user_target_usd * 1350 
+        # KRW 텍스트에만 인라인 스타일 적용 (다른 곳에 영향 미치지 않음)
         st.markdown(f"""
-            <div style="margin-top: 40px;">
-                <span class="krw-text">≈ KRW {krw_val/100000000:.1f}억 원</span>
+            <div style="margin-top: 32px;">
+                <span style="
+                    font-size: 20px; 
+                    color: #00E676; 
+                    font-weight: 600;
+                ">
+                    ≈ KRW {krw_val/100000000:.1f}억 원
+                </span>
             </div>
         """, unsafe_allow_html=True)
 
@@ -3341,6 +3335,32 @@ with st.container(border=True):
         심리적 마지노선을 지탱하는 강력한 리스크 해자(Moat)가 됩니다.
     """)
 
+
+
+
+# --------------------------------------------------------------------------------
+# 📜 FOOTER: RABBIT TERMINAL SIGNATURE
+# --------------------------------------------------------------------------------
+st.markdown("---") # 섹션 구분선
+
+# 사이드바와 동일한 폰트 스타일 및 중앙 정렬 적용
+st.markdown("""
+    <style>
+    .terminal-footer {
+        font-family: 'Courier New', Courier, monospace; /* 터미널 느낌의 고정폭 폰트 */
+        font-size: 14px;
+        color: #666666; /* 차분한 그레이 톤 */
+        text-align: center;
+        letter-spacing: 2px; /* 자간 조절로 전문성 강조 */
+        padding-top: 50px;
+        padding-bottom: 20px;
+        font-weight: 500;
+    }
+    </style>
+    <div class="terminal-footer">
+        RABBIT TERMINAL v2026.02
+    </div>
+""", unsafe_allow_html=True)
 
 
 
