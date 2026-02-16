@@ -2625,168 +2625,179 @@ if total_p_value > 0:
         sharpe_auto = (weighted_roi - RF_RATE) / weighted_vol
 
 # --------------------------------------------------------------------------------
-# 🎯 UI 레이아웃 (V756: Fixed Syntax)
+# 🎯 UI 레이아웃 (V757: Sequential Logic Optimized)
 # --------------------------------------------------------------------------------
+
+# [단계 1] 레이아웃 및 m_right 데이터 계산 우선 수행
 m_left, m_right = st.columns([3, 7])
 
+with m_right:
+    # --- [공통 제어 변수 및 스타일] ---
+    try:
+        irx_data = yf.Ticker("^IRX").history(period="1d")
+        LIVE_RISK_FREE_RATE = irx_data['Close'].iloc[-1] / 100 if not irx_data.empty else 0.035
+    except Exception:
+        LIVE_RISK_FREE_RATE = 0.035
+
+    # --- [Sharpe & Sortino 실시간 정밀 산출] ---
+    # 'returns' 변수가 상단에서 정의되어 있어야 합니다.
+    daily_rf = LIVE_RISK_FREE_RATE / 252
+    
+    if 'returns' in locals() and not returns.empty:
+        excess_returns = returns - daily_rf
+        # 1. Sharpe 정밀 계산
+        sharpe_auto = (excess_returns.mean() / excess_returns.std()) * (252**0.5)
+        
+        # 2. Sortino 정밀 계산 (하락 변동성만 추출)
+        downside_returns = excess_returns[excess_returns < 0]
+        if not downside_returns.empty and len(downside_returns) > 1:
+            downside_deviation = downside_returns.std() * (252**0.5)
+            sortino_auto = (excess_returns.mean() * 252) / downside_deviation if downside_deviation > 0 else 0.0
+        else:
+            sortino_auto = sharpe_auto
+    else:
+        # 데이터 부재 시 기존 변수 유지 혹은 기본값
+        sharpe_auto = locals().get('sharpe_auto', 0.0)
+        sortino_auto = locals().get('sortino_auto', sharpe_auto * 1.2)
+
+    GAUGE_HEIGHT = 180
+    TOP_MARGIN, BOTTOM_MARGIN = 0, 3
+    TEXT_Y_POS, DESC_Y_POS = 0.42, 0.23
+    GAUGE_Y_RANGE = [0, 0.8]
+    VAL_FONT_SIZE, TXT_FONT_SIZE, DSC_FONT_SIZE = 32, 20, 11
+
+    row1_col1, row1_col2 = st.columns(2)
+    row2_col1, row2_col2 = st.columns(2)
+    
+    # [지표 계산: 전략적 장기 가치 중심]
+    # CAGR 40% 고정 (2030년 자산 50억 목표 기반)
+    cagr_val = 0.40 
+    
+    # MDD 및 MAR Ratio 계산
+    mdd_abs_val = abs(mdd_value) if mdd_value != 0 else 0.01
+    mar_ratio = cagr_val / mdd_abs_val
+
+    common_layout = dict(
+        height=GAUGE_HEIGHT, margin=dict(t=TOP_MARGIN, b=BOTTOM_MARGIN, l=15, r=15),
+        paper_bgcolor='rgba(0,0,0,0)', font={'color': "#FFF"}
+    )
+
+    # 1. MDD (고점 대비 최대 하락폭)
+    with row1_col1:
+        mdd_pct = mdd_value * 100
+        mdd_color = "#FDD835" if mdd_pct >= -20 else ("#FF9100" if mdd_pct >= -40 else "#FF1744")
+        fig_mdd = go.Figure(go.Indicator(
+            mode = "gauge+number", value = mdd_pct, domain = {'x': [0, 1], 'y': GAUGE_Y_RANGE},
+            number = {'font': {'size': VAL_FONT_SIZE, 'color': mdd_color}, 'suffix': "%", 'valueformat': ".1f"},
+            gauge = {'axis': {'range': [0, -60], 'tickvals': [0, -30, -60]},
+                     'bar': {'color': "rgba(255, 255, 255, 0.8)"},
+                     'steps': [{'range': [0, -20], 'color': "rgba(253, 216, 53, 0.3)"},
+                               {'range': [-20, -40], 'color': "rgba(255, 145, 0, 0.3)"},
+                               {'range': [-40, -60], 'color': "rgba(255, 23, 68, 0.3)"}]}
+        ))
+        fig_mdd.add_annotation(text="MDD", x=0.5, y=TEXT_Y_POS, font=dict(size=TXT_FONT_SIZE, color="#888"), showarrow=False)
+        fig_mdd.add_annotation(text="고점 대비 최대 하락폭", x=0.5, y=DESC_Y_POS, font=dict(size=DSC_FONT_SIZE, color="#666"), showarrow=False)
+        fig_mdd.update_layout(**common_layout)
+        st.plotly_chart(fig_mdd, use_container_width=True, key="mdd_v758")
+
+    # 2. SHARPE (변동성 대비 효율)
+    with row1_col2:
+        sharpe_c = "#66BB6A" if sharpe_auto >= 1.0 else "#FF1744"
+        fig_sharpe = go.Figure(go.Indicator(
+            mode = "gauge+number", value = sharpe_auto, domain = {'x': [0, 1], 'y': GAUGE_Y_RANGE},
+            number = {'font': {'size': VAL_FONT_SIZE, 'color': sharpe_c}, 'valueformat': ".2f"},
+            gauge = {'axis': {'range': [0, 2], 'tickvals': [0, 1, 2]},
+                     'bar': {'color': "rgba(255, 255, 255, 0.8)"},
+                     'steps': [{'range': [0, 1], 'color': "rgba(255, 23, 68, 0.3)"},
+                               {'range': [1, 2], 'color': "rgba(102, 187, 106, 0.3)"}]}
+        ))
+        fig_sharpe.add_annotation(text="SHARPE", x=0.5, y=TEXT_Y_POS, font=dict(size=TXT_FONT_SIZE, color="#888"), showarrow=False)
+        fig_sharpe.add_annotation(text=f"전체 변동성 대비 효율 (Rf: {LIVE_RISK_FREE_RATE:.1%})", x=0.5, y=DESC_Y_POS, font=dict(size=DSC_FONT_SIZE, color="#666"), showarrow=False)
+        fig_sharpe.update_layout(**common_layout)
+        st.plotly_chart(fig_sharpe, use_container_width=True, key="sharpe_v758")
+
+    # 3. MAR (고통 대비 생존률)
+    with row2_col1:
+        mar_c = "#66BB6A" if mar_ratio >= 1.0 else "#FF1744"
+        fig_mar = go.Figure(go.Indicator(mode = "gauge+number", value = mar_ratio, domain = {'x': [0, 1], 'y': GAUGE_Y_RANGE},
+            number = {'font': {'size': VAL_FONT_SIZE, 'color': mar_c}, 'valueformat': ".2f"},
+            gauge = {'axis': {'range': [0, 2]}, 'bar': {'color': "rgba(255, 255, 255, 0.8)"},
+                     'steps': [{'range': [0, 1], 'color': "rgba(255, 23, 68, 0.3)"}, {'range': [1, 2], 'color': "rgba(0, 230, 118, 0.3)"}]}
+        ))
+        fig_mar.add_annotation(text="MAR", x=0.5, y=TEXT_Y_POS, font=dict(size=TXT_FONT_SIZE, color="#888"), showarrow=False)
+        fig_mar.add_annotation(text="고통 대비 생존 보상률", x=0.5, y=DESC_Y_POS, font=dict(size=DSC_FONT_SIZE, color="#666"), showarrow=False)
+        fig_mar.update_layout(**common_layout)
+        st.plotly_chart(fig_mar, use_container_width=True, key="mar_v758")
+
+    # 4. SORTINO (하락 위험 대비 효율)
+    with row2_col2:
+        sort_c = "#66BB6A" if sortino_auto >= 1.0 else "#FF1744"
+        fig_sort = go.Figure(go.Indicator(mode = "gauge+number", value = sortino_auto, domain = {'x': [0, 1], 'y': GAUGE_Y_RANGE},
+            number = {'font': {'size': VAL_FONT_SIZE, 'color': sort_c}, 'valueformat': ".2f"},
+            gauge = {'axis': {'range': [0, 2]}, 'bar': {'color': "rgba(255, 255, 255, 0.8)"},
+                     'steps': [{'range': [0, 1], 'color': "rgba(255, 23, 68, 0.3)"}, {'range': [1, 2], 'color': "rgba(0, 200, 83, 0.3)"}]}
+        ))
+        fig_sort.add_annotation(text="SORTINO", x=0.5, y=TEXT_Y_POS, font=dict(size=TXT_FONT_SIZE, color="#888"), showarrow=False)
+        fig_sort.add_annotation(text="하락 위험 대비 수익 효율", x=0.5, y=DESC_Y_POS, font=dict(size=DSC_FONT_SIZE, color="#666"), showarrow=False)
+        fig_sort.update_layout(**common_layout)
+        st.plotly_chart(fig_sort, use_container_width=True, key="sort_v758")
+
+    # --- [Portfolio Score 실시간 최종 산출] ---
+    def get_step_score(val):
+        return min(90 + (val - 1.0) * 10, 100) if val >= 1.0 else val * 90
+
+    s_pts = get_step_score(sharpe_auto)
+    so_pts = get_step_score(sortino_auto)
+    mar_pts = get_step_score(mar_ratio)
+    
+    _mdd_abs_pct = abs(mdd_value * 100)
+    if _mdd_abs_pct == 0: mdd_pts = 100
+    elif _mdd_abs_pct <= 20: mdd_pts = 70
+    elif _mdd_abs_pct <= 40: mdd_pts = 50
+    else: mdd_pts = 30
+
+    W_EQUAL = 0.25
+    final_p_score = round((s_pts + so_pts + mar_pts + mdd_pts) * W_EQUAL, 1)
+
+# [단계 2] 계산된 데이터를 m_left에 시각화
 with m_left:
-    # Privacy Mode 위치 조정 (상단 여백 추가)
-    # 토글 위치 조정
-    st.markdown('<div style="margin-top: 30px;"></div>', unsafe_allow_html=True)
-    hide_sensitive = st.toggle("Privacy Mode", value=False, key="privacy_filter_v756")
+    TOGGLE_TOP_MARGIN, CONTENT_TOP_MARGIN = 20, 30
+    SECTION_GAP, SCORE_SECTION_GAP = 10, 10
+    L_FONT, V_FONT, S_FONT, U_FONT = 20, 46, 52, 18
     
-    # 폰트 사이즈 업그레이드 (38px -> 46px) 및 스타일 정밀 조정
-    BASE_STYLE = 'font-weight: 700; line-height: 1.0; letter-spacing: -1.5px;'
-    PURPLE_TEXT = f'font-size: 46px; {BASE_STYLE} color: #D500F9; text-shadow: 0 0 15px rgba(213, 0, 249, 0.4);'
+    LABEL_COLOR, NAV_COLOR, CUR_COLOR, UNIT_COLOR = "#888888", "#D500F9", "#444444", "#444444"
+    YTD_COLOR = "#00E676" if ytd_return > 0 else "#FF5252" if ytd_return < 0 else "#B0B0B0"
+    SCORE_COLOR = "#00E676" if final_p_score >= 80 else ("#FDD835" if final_p_score >= 60 else "#FF1744")
+
+    st.markdown(f'<div style="margin-top: {TOGGLE_TOP_MARGIN}px;"></div>', unsafe_allow_html=True)
+    hide_sensitive = st.toggle("Privacy Mode", value=False, key="privacy_v757")
     
-    ytd_color = "#00E676" if ytd_return > 0 else "#FF5252" if ytd_return < 0 else "#B0B0B0"
-    YTD_TEXT = f'font-size: 46px; {BASE_STYLE} color: {ytd_color};'
+    BASE_S = 'font-weight: 700; line-height: 1.0; letter-spacing: -1.5px;'
+    L_S = f'font-size: {L_FONT}px; color: {LABEL_COLOR}; margin-bottom: 4px; letter-spacing: 1.5px; font-weight: 500;'
+    P_S = f'font-size: {V_FONT}px; {BASE_S} color: {NAV_COLOR}; text-shadow: 0 0 15px rgba(213, 0, 249, 0.4);'
+    Y_S = f'font-size: {V_FONT}px; {BASE_S} color: {YTD_COLOR};'
+    S_S = f'font-size: {S_FONT}px; {BASE_S} color: {SCORE_COLOR}; text-shadow: 0 0 20px {SCORE_COLOR}44;'
 
-    val_display = f"{total_val_display:,.2f}" if not hide_sensitive else "••••••••"
-    ytd_display = f"{ytd_return:.2%}" if not hide_sensitive else "••••"
+    # --- [데이터 처리 로직 수정] ---
+    val_d = f"{total_val_display:,.2f}" if not hide_sensitive else "••••••••"
+    ytd_d = f"{ytd_return:.2%}" if not hide_sensitive else "••••"
+    # Privacy Mode 여부와 관계없이 final_p_score를 그대로 노출합니다.
+    score_d = final_p_score 
 
-    # margin-top을 대폭 늘려(20px -> 80px) 게이지와 수평 중심을 맞춤
-    # 첫번째 margin-top: Net Asset Value와 토글과의 간격 조정
-    # 두번째 margin-top: YTD PERFORMANCE와 Net Asset Value와의 간격 조정
     st.markdown(f"""
-        <div style="margin-top: 35px;">         
-            <p style="font-size: 13px; color: #888; margin-bottom: 4px; letter-spacing: 1.5px; font-weight: 500;">NET ASSET VALUE</p>
-            <p style="{PURPLE_TEXT}">{val_display} <span style="font-size: 16px; color: #444; font-weight: 600;">{base_currency}</span></p>
+        <div style="margin-top: {CONTENT_TOP_MARGIN}px;">
+            <p style="{L_S}">NET ASSET VALUE</p>
+            <p style="{P_S}">{val_d} <span style="font-size: 16px; color: {CUR_COLOR}; font-weight: 600;">{base_currency}</span></p>
         </div>
-        <div style="margin-top: 40px;">        
-            <p style="font-size: 13px; color: #888; margin-bottom: 4px; letter-spacing: 1.5px; font-weight: 500;">YTD PERFORMANCE</p>
-            <p style="{YTD_TEXT}">{ytd_display}</p>
+        <div style="margin-top: {SECTION_GAP}px;">
+            <p style="{L_S}">YTD PERFORMANCE</p>
+            <p style="{Y_S}">{ytd_d}</p>
+        </div>
+        <div style="margin-top: {SCORE_SECTION_GAP}px;">
+            <p style="{L_S}">PORTFOLIO SCORE</p>
+            <p style="{S_S}">{score_d} <span style="font-size: {U_FONT}px; color: {UNIT_COLOR}; font-weight: 600;">/ 100</span></p>
         </div>
     """, unsafe_allow_html=True)
-
-with m_right:
-    g_col1, g_col2 = st.columns(2)
-    mdd_display_color = "#FF5252" if mdd_value < 0 else "#00E676"
-
-    # 공통 설정값
-    gauge_height = 300
-    gauge_domain = {'x': [0, 1], 'y': [0, 0.8]} 
-
-
-
-
-
-    # --- MDD 수치 및 게이지 색상 로직 (0에서 오른쪽으로 -60까지, 투명도 적용) ---  
-    mdd_pct = mdd_value * 100
-    
-    # 투명도 조절을 위한 rgba 정의 (알파값 0.5 적용)
-    COLOR_MDD_YELLOW_ALPHA = "rgba(253, 216, 53, 0.5)" # #FDD835 기반
-    COLOR_MDD_ORANGE_ALPHA = "rgba(255, 145, 0, 0.5)" # #FF9100 기반
-    COLOR_MDD_RED_ALPHA    = "rgba(255, 23, 68, 0.5)"  # #FF1744 기반
-
-    # 수치에 따른 텍스트 색상 결정 (가독성을 위해 숫자는 선명하게 유지)
-    if mdd_pct >= -20:
-        mdd_status_color = "#FDD835"  # 노랑
-    elif mdd_pct >= -40:
-        mdd_status_color = "#FF9100"  # 주황
-    else:
-        mdd_status_color = "#FF1744"  # 빨강
-
-    # 1. MDD GAUGE
-    fig_mdd = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = mdd_pct,
-        domain = gauge_domain, 
-        number = {'font': {'size': 40, 'color': mdd_status_color}, 'suffix': "%", 'valueformat': ".1f"},
-        gauge = {
-            # 왼쪽(0)에서 오른쪽(-60)으로 향하는 구조 유지
-            'axis': {
-                'range': [0, -60], 
-                'tickwidth': 1, 
-                'tickcolor': "#FFF", 
-                'tickfont': {'size': 10},
-                'tickvals': [0, -10, -20, -30, -40, -50, -60]
-            },
-            'bar': {'color': "rgba(255, 255, 255, 0.8)"}, # 포인터 바도 살짝 투명하게
-            'bgcolor': "rgba(255, 255, 255, 0.05)",      # 은은한 배경 트랙
-            'borderwidth': 1, 'bordercolor': "rgba(255, 255, 255, 0.2)",
-            'steps': [
-                {'range': [0, -20],   'color': COLOR_MDD_YELLOW_ALPHA}, 
-                {'range': [-20, -40], 'color': COLOR_MDD_ORANGE_ALPHA}, 
-                {'range': [-40, -60], 'color': COLOR_MDD_RED_ALPHA}
-            ],
-            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': mdd_pct}
-        }
-    ))
-    
-    fig_mdd.add_annotation(
-        text="MDD",
-        x=0.5, y=0.35,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=20, color="#888"),
-        xanchor='center'
-    )
-    
-    fig_mdd.update_layout(
-        height=gauge_height, 
-        margin=dict(t=50, b=10, l=30, r=30),
-        paper_bgcolor='rgba(0,0,0,0)', 
-        font={'color': "#FFF"}
-    )
-    
-    g_col1.plotly_chart(fig_mdd, use_container_width=True, config={'displayModeBar': False})
-
-
-
-    # --- 샤프 비율 심플 3단계 로직 (RGBA 투명도 적용) --- 
-    # 투명도 조절을 위해 색상을 rgba 값으로 변환 (알파값 0.5 적용)
-    COLOR_RED_ALPHA = "rgba(255, 23, 68, 0.5)"     # Caution (레드)
-    COLOR_NORMAL_ALPHA = "rgba(76, 175, 81, 0.5)"  # Normal (그린)
-    COLOR_PRIME_ALPHA = "rgba(102, 187, 106, 0.5)" # Prime (연한 그린)
-
-    if sharpe_auto >= 2.0:
-        sharpe_status_color = "#66BB6A" # 텍스트는 가독성을 위해 불투명 유지
-        gauge_color = COLOR_PRIME_ALPHA
-    elif sharpe_auto >= 1.0:
-        sharpe_status_color = "#4caf51"
-        gauge_color = COLOR_NORMAL_ALPHA
-    else:
-        sharpe_status_color = "#FF1744"
-        gauge_color = COLOR_RED_ALPHA
-
-    # 2. SHARPE RATIO GAUGE
-    fig_sharpe = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = sharpe_auto,
-        domain = gauge_domain,
-        number = {'font': {'size': 40, 'color': sharpe_status_color}, 'valueformat': ".2f"},
-        gauge = {
-            'axis': {'range': [-1, 4], 'tickvals': [-1, 0, 1, 2, 4], 'tickcolor': "#FFF"},
-            'bar': {'color': "rgba(255, 255, 255, 0.8)"}, # 포인터도 살짝 투명하게 처리
-            'bgcolor': "rgba(255, 255, 255, 0.05)",      # 배경 트랙을 아주 연하게 표시
-            'borderwidth': 1, 'bordercolor': "rgba(255, 255, 255, 0.2)",
-            'steps': [
-                {'range': [-1, 1], 'color': COLOR_RED_ALPHA}, 
-                {'range': [1, 2], 'color': COLOR_NORMAL_ALPHA},
-                {'range': [2, 4], 'color': COLOR_PRIME_ALPHA}
-            ],
-            'threshold': {'line': {'color': "#FFF", 'width': 3}, 'thickness': 0.75, 'value': sharpe_auto}
-        }
-    ))
-    
-    fig_sharpe.add_annotation(
-        text="SHARPE RATIO",
-        x=0.5, y=0.35,
-        xref="paper", yref="paper",
-        showarrow=False,
-        font=dict(size=20, color="#888"),
-        xanchor='center'
-    )
-    
-    fig_sharpe.update_layout(
-        height=gauge_height, 
-        margin=dict(t=50, b=10, l=30, r=30), 
-        paper_bgcolor='rgba(0,0,0,0)', 
-        font={'color': "#FFF"}
-    )
-    
-    g_col2.plotly_chart(fig_sharpe, use_container_width=True, config={'displayModeBar': False})
 
             # 오리지널 게이지 컬러
             #    {'range': [-1, 0], 'color': "#311B92"}, 
@@ -3121,194 +3132,223 @@ with st.expander("**HOLDINGS**", expanded=True):
 
 
 
-# 4. Intelligence
+
+# --------------------------------------------------------------------------------
+# 🎯 STRATEGIC PROJECTION: Custom Setup Box (No Expander - Fixed Order)
+# --------------------------------------------------------------------------------
 st.markdown("---")
-st.header("INTELLIGENCE GRID")
+st.header("STRATEGIC PROJECTION")
 
-r1, r2 = st.columns([1, 1])
-SYNC_HEIGHT = 460 
+# [1. 전용 스타일 정의]
+# setup-title: 목표 설정 제목 - Target Configuration
+# krw-text: 환율 적용된 KRW 금액을 보여주는 텍스트 - KRW 약 xx원
+# div[data-testid="stNumberInput"] label p: TARGET NAV (USD) 제목 텍스트
+st.markdown("""
+    <style>
+    .setup-title {
+        font-size: 25px !important;
+        font-weight: 700 !important;
+        color: #D500F9 !important;
+        margin-bottom: 15px;
+    }
+    .krw-text {
+        font-size: 20px !important; 
+        color: #00E676 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stNumberInput"] label p {
+        font-size: 20px !important;
+        font-weight: 600 !important;
+        color: #888888 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-with r1:
-    # Risk Analysis (Auto-Weighted)
-    # --------------------------------------------------------------------------------
-    with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader(section_labels.get("risk_analysis", "RISK ANALYSIS"))
-        
-        # 1. BENCHMARKS
-        RISK_BENCHMARKS = {
-            "Crypto": {"roi": 0.70, "vol": 0.60},
-            "Stock":  {"roi": 0.12, "vol": 0.20},
-            "Bond":   {"roi": 0.04, "vol": 0.08},
-            "Cash":   {"roi": 0.035, "vol": 0.00},
-            "Other":  {"roi": 0.05, "vol": 0.10} # Default fallback
-        }
-        RF_RATE = 0.035 # Fixed 3.5%
-        
-        # 2. CALCULATE WEIGHTS
-        # We need total value excluding cash? No, Cash is an asset class.
-        # 'processed_assets (sorted_assets)' includes CASH entry if applicable.
-        
-        # Map asset class from our data to benchmarks
-        # Our data uses: "Stock", "Crypto", "ETF", "Other", "Cash"
-        # Map ETF -> Stock? or Other? Let's map ETF -> Stock for now or add ETF benchmark.
-        # User only specified: Crypto, Stock, Bond, Cash.
-        # We will map ETF -> Stock.
-        
-        class_mapping = {
-            "Crypto": "Crypto",
-            "Stock": "Stock",
-            "ETF": "Stock", # Assumed
-            "Cash": "Cash",
-            "Liquidity": "Cash",
-            "Bond": "Bond"
-        }
-        
-        total_p_value = sum(a['value_usd'] for a in sorted_assets)
-        weighted_roi = 0.0
-        weighted_vol = 0.0
-        
-        composition = {"Crypto": 0.0, "Stock": 0.0, "Bond": 0.0, "Cash": 0.0}
-        
-        if total_p_value > 0:
-            for asset in sorted_assets:
-                ac = asset.get('asset_class', 'Other')
-                val = asset['value_usd']
-                weight = val / total_p_value
-                
-                # Resolving Benchmark Key
-                bench_key = class_mapping.get(ac, "Other")
-                if bench_key not in RISK_BENCHMARKS: bench_key = "Other"
-                
-                # Aggregate for Display
-                if bench_key in composition:
-                    composition[bench_key] += weight
-                
-                # Weighted Sum
-                metrics = RISK_BENCHMARKS[bench_key]
-                weighted_roi += metrics['roi'] * weight
-                weighted_vol += metrics['vol'] * weight
-        
-        # 3. SHARPE CALCULATION
-        # Sharpe = (Rp - Rf) / Op
-        if weighted_vol > 0:
-            sharpe_auto = (weighted_roi - RF_RATE) / weighted_vol
-        else:
-            sharpe_auto = 0.0
-            
-        # 4. RENDER GAUGE
-        fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = sharpe_auto,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "SHARPE RATIO"},
-            gauge = {
-                'axis': {'range': [-1, 4], 'tickwidth': 1, 'tickcolor': "#FFF"},
-                'bar': {'color': "#FFF"},
-                'bgcolor': "rgba(0,0,0,0)",
-                'borderwidth': 2,
-                'bordercolor': "#444",
-                'steps': [
-                    {'range': [-1, 0], 'color': "#311B92"}, 
-                    {'range': [0, 1], 'color': "#512DA8"},
-                    {'range': [1, 2], 'color': "#7B1FA2"},
-                    {'range': [2, 4], 'color': "#D500F9"}
-                ],
-                'threshold': {
-                    'line': {'color': "#FFF", 'width': 4},
-                    'thickness': 0.75,
-                    'value': sharpe_auto
-                }
-            }
-        ))
-        fig_gauge.update_layout(height=180, margin=dict(t=50, b=0, l=30, r=40), paper_bgcolor='rgba(0,0,0,0)', font={'color': "#FFF"})
-        st.plotly_chart(fig_gauge, use_container_width=True)
-        
-        # 5. COMPOSITION SUMMARY
-        st.divider()
-        st.caption(f"STRATEGIC PROFILE (RF: {RF_RATE*100:.2f}%)")
-        
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("CRYPTO", f"{composition['Crypto']*100:.1f}%", help="ROI: 70% | Vol: 60%")
-        c2.metric("STOCK", f"{composition['Stock']*100:.1f}%", help="ROI: 12% | Vol: 20%")
-        c3.metric("BOND", f"{composition['Bond']*100:.1f}%", help="ROI: 4% | Vol: 8%")
-        c4.metric("CASH", f"{composition['Cash']*100:.1f}%", help="ROI: 3.5% | Vol: 0%")
-        
-        st.caption(f"Est. ROI: {weighted_roi*100:.1f}% | Est. Volatility: {weighted_vol*100:.1f}%")
+# [2. 데이터 준비 및 목표 설정]
+from datetime import datetime
+import pandas as pd
+import numpy as np
 
-with r2:
-    with st.container(border=True, height=SYNC_HEIGHT):
-        st.subheader("NEWS")
-        news_items = get_news(raw_assets)
-        
-        if news_items:
-            news_by_ticker = {}
-            for n in news_items:
-                t = n['ticker']
-                if t not in news_by_ticker: news_by_ticker[t] = []
-                news_by_ticker[t].append(n)
-            
-            all_tickers = [a['ticker'] for a in sorted_assets if a['ticker'] != 'CASH']
-            if not all_tickers: all_tickers = ["General"]
-            
-            tab_names = []
-            seen = {}
-            for t in all_tickers:
-                # V47: Strip -USD
-                d_t = t.replace("-USD", "")
-                if d_t in seen:
-                    seen[d_t] += 1
-                    tab_names.append(f"{d_t} ({seen[d_t]})")
-                else:
-                    seen[d_t] = 1
-                    tab_names.append(d_t)
-            
-            tabs = st.tabs(tab_names)
-            
-            for i, t in enumerate(all_tickers):
-                with tabs[i]:
-                    page_key = f"news_page_{t}_{i}" 
-                    if page_key not in st.session_state: st.session_state[page_key] = 0
-                    
-                    page = st.session_state[page_key]
-                    items_per_page = 5 
-                    
-                    if t == "General":
-                         current_ticker_news = news_items 
-                    else:
-                         current_ticker_news = news_by_ticker.get(t, [])
+current_year = datetime.now().year
+years_to_target = 2030 - current_year
+years_range = np.arange(0, years_to_target + 1) # 변수 정의 완료
 
-                    total_items = len(current_ticker_news)
-                    start_idx = page * items_per_page
-                    end_idx = start_idx + items_per_page
-                    display_items = current_ticker_news[start_idx:end_idx]
-                    
-                    div_space_height = SYNC_HEIGHT - 220 
-                    with st.container(height=div_space_height, border=False):
-                        if display_items:
-                            for item in display_items:
-                                pub_time = item.get('providerPublishTime', 0)
-                                date_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(pub_time)) if isinstance(pub_time, int) else str(pub_time)
-                                st.markdown(f"""
-                                <div class="news-item">
-                                    <div class="news-title">{item['title']}</div>
-                                    <div class="news-meta">
-                                        {date_str} • <a href="{item.get('link', '#')}" class="news-link" target="_blank">ACCESS DATA</a>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.caption("NO SIGNAL.")
-                    
-                    f_col1, f_mid, f_col2 = st.columns([1, 2, 1])
-                    with f_col1:
-                        if page > 0:
-                            if st.button("<< PREV", key=f"prev_{page_key}", use_container_width=True):
-                                st.session_state[page_key] -= 1
-                                st.rerun()     
-                    with f_col2:
-                         if end_idx < total_items:
-                            if st.button("NEXT >>", key=f"next_{page_key}", use_container_width=True):
-                                st.session_state[page_key] += 1
-                                st.rerun()
-        else:
-            st.info("NO INTEL DETECTED.")
+with st.container():
+#    st.markdown('<p class="setup-title">TARGET CONFIGURATION</p>', unsafe_allow_html=True)
+    
+    col_input, col_info = st.columns([1, 1])
+    with col_input:
+        user_target_usd = st.number_input(
+            "TARGET NAV (USD)", 
+            min_value=100000, 
+            value=1500000, 
+            step=100000,
+            format="%d",
+            key="target_val_v_final"
+        )
+    with col_info:
+        krw_val = user_target_usd * 1350 
+        st.markdown(f"""
+            <div style="margin-top: 40px;">
+                <span class="krw-text">≈ KRW {krw_val/100000000:.1f}억 원</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+# 🚀 ROW 1: NAV GROWTH PATH
+with st.container(border=True):
+    st.subheader("NAV GROWTH PATH")
+    
+    # 상단의 cagr_val과 final_p_score를 실시간 반영
+    eff_cagr = cagr_val * (final_p_score / 100 + 0.2)
+    future_values = [total_val_display * (1 + eff_cagr)**y for y in years_range]
+    
+    df_roadmap = pd.DataFrame({
+        'Year': [current_year + y for y in years_range],
+        'Projected Value': future_values,
+        'Target': [user_target_usd] * len(years_range)
+    })
+
+    fig_roadmap = go.Figure()
+    
+    # 목표선 (Target Line)
+    fig_roadmap.add_trace(go.Scatter(
+        x=df_roadmap['Year'], y=df_roadmap['Target'], 
+        # name=f"Target (${user_target_usd/1000:,.0f}K)", 
+        name="Target",
+        line=dict(color="#FFD700", dash='dash', width=2)
+    ))
+    
+    # 예측 곡선 (Projected Path)
+    fig_roadmap.add_trace(go.Scatter(
+        x=df_roadmap['Year'], y=df_roadmap['Projected Value'], 
+        name="NAV",
+        fill='tozeroy', fillcolor='rgba(0, 230, 118, 0.1)', 
+        line=dict(color="#00E676", width=2)
+    ))
+
+    # Y축 최댓값 계산 (예측치와 목표치 중 큰 값의 1.15배를 상단 마진으로 확보)
+    y_max = max(max(future_values), user_target_usd) * 1.15
+
+    fig_roadmap.update_layout(
+        height=350, # 차트 가독성을 위해 높이를 소폭 상향
+        margin=dict(t=50, b=20, l=10, r=10),
+        paper_bgcolor='rgba(0,0,0,0)', 
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="#BBBBBB"), 
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(0,0,0,0)"
+        ),
+        xaxis=dict(
+            showgrid=False,
+            dtick=1,
+            tickformat="d"
+        ), 
+        yaxis=dict(
+            showgrid=True, 
+            gridcolor="#222", 
+            tickformat="$,.0f",
+            range=[0, y_max] # Y축 범위를 다이나믹하게 설정하여 잘림 방지
+        )
+    )
+    st.plotly_chart(fig_roadmap, use_container_width=True)
+    
+    # 인사이트
+    expected_2030 = future_values[-1]
+    achievement_rate = (expected_2030 / user_target_usd) * 100
+    
+    if achievement_rate >= 100:
+        st.success(f"현재 페이스 유지 시 2030년 목표의 **{achievement_rate:.1f}%** 달성이 예상됩니다.")
+    else:
+        st.warning(f"목표 달성률이 **{achievement_rate:.1f}%**입니다. 추가 자본 투입이나 CAGR 개선 전략이 필요합니다.")
+
+
+
+# 2. SURVIVAL STRESS TEST (Zero-Error Sync with Transparency)
+with st.container(border=True):
+    st.subheader("SURVIVAL STRESS TEST")
+
+    # [1. 데이터 무결성: 상단 MDD 지표와 100% 동기화]
+    try:
+        current_mdd_decimal = mdd_val / 100 if abs(mdd_val) > 1 else mdd_val
+        if current_mdd_decimal > 0: current_mdd_decimal = -current_mdd_decimal
+    except NameError:
+        current_mdd_decimal = -0.307
+
+    # [2. 블랙스완 시나리오: 전고점(ATH) 대비 -50% 하락]
+    target_mdd_decimal = -0.50
+    additional_shock_needed = (1 + target_mdd_decimal) / (1 + current_mdd_decimal) - 1
+    shock_factor = min(additional_shock_needed, -0.10)
+    shocked_value = total_val_display * (1 + shock_factor)
+    
+    # [3. 실시간 환율 및 현금흐름 산출]
+    try:
+        k_to_u = 1 / usdkrw_rate if usdkrw_rate != 0 else 1/1350
+        c_to_u = 1 / usdcad_rate if usdcad_rate != 0 else 0.72
+    except NameError:
+        k_to_u, c_to_u = 1/1350, 0.72
+
+    safety_net_annual = ((6000000 * 12) * k_to_u) + ((2000 * 12) * c_to_u)
+    
+    # [4. 시각화 - 투명도 적용]
+    labels = ['Current NAV', 'Black Swan Shock', 'Annual Safety Net']
+    values = [total_val_display, shocked_value, safety_net_annual]
+    
+    # RGBA 투명도 적용 컬러셋
+    colors = [
+        'rgba(136, 136, 136, 0.6)',  # Current (Grey)
+        'rgba(255, 23, 68, 0.6)',    # Shock (Red)
+        'rgba(76, 175, 80, 0.6)'     # Safety Net (Green)
+    ]
+    line_colors = [
+        'rgba(136, 136, 136, 0.6)',
+        'rgba(255, 23, 68, 0.6)',
+        'rgba(76, 175, 80, 0.6)'
+    ]
+    
+    fig_stress = go.Figure(go.Bar(
+        x=labels, y=values,
+        marker=dict(
+            color=colors,
+            line=dict(color=line_colors, width=2) # 테두리로 가시성 확보
+        ),
+        text=[f"${v/1000:,.0f}K" for v in values], 
+        textposition='auto',
+        textfont=dict(color="#FFFFFF", size=14)
+    ))
+    
+    fig_stress.update_layout(
+        height=350, margin=dict(t=40, b=20, l=10, r=10),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="#BBBBBB"),
+        yaxis=dict(showgrid=True, gridcolor="#222", tickformat="$,.0f")
+    )
+    st.plotly_chart(fig_stress, use_container_width=True)
+    
+    # [5. 데이터 무결성 보고]
+    st.info(f"""
+        **1. Risk Data Audit:** 현재 포트폴리오는 전고점 대비 {current_mdd_decimal*100:.1f}% 하락한 상태입니다.
+        
+        **2. Scenario:** 시장이 최악의 경우 전고점 대비 -50%까지 추가 하락할 경우, 
+        현재가에서 {shock_factor*100:.1f}%의 추가 충격이 예상됩니다.
+        
+        **3. Stability:** 이 극한의 상황에서도 ${safety_net_annual:,.0f}의 연간 현금흐름이 
+        심리적 마지노선을 지탱하는 강력한 리스크 해자(Moat)가 됩니다.
+    """)
+
+
+
+
+
+
+
+
+
+
+
+
